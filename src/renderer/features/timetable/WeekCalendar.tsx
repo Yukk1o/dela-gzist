@@ -133,8 +133,8 @@ export function WeekCalendar({
             const layout = layoutDayColumns([
               ...dailyLessons.map((lesson) => ({
                 id: `lesson-${lesson.id}`,
-                start: periodBoundary(lesson.startPeriod, 'start'),
-                end: periodBoundary(lesson.endPeriod, 'end'),
+                start: periodBoundary(lesson.startPeriod, 'start', lesson),
+                end: periodBoundary(lesson.endPeriod, 'end', lesson),
               })),
               ...dailyEvents.map((event) => ({ id: `event-${event.id}`, ...eventSpan(event) })),
             ]);
@@ -223,8 +223,8 @@ function LessonBlock({
   lesson: TimetableLesson;
   onOpen: (detail: CalendarItemDetail) => void;
 }) {
-  const start = periodBoundary(lesson.startPeriod, 'start');
-  const end = periodBoundary(lesson.endPeriod, 'end');
+  const start = periodBoundary(lesson.startPeriod, 'start', lesson);
+  const end = periodBoundary(lesson.endPeriod, 'end', lesson);
   const open = () => onOpen({ kind: 'lesson', lesson, date });
   // 与 LocalEventBlock 同一阈值（rem，随字号缩放）：2.75rem 起显示第二行、3.75rem 起显示节次行，
   // 2.25rem 的单节课块只留课程名，避免第三行被 overflow-hidden 裁半。
@@ -382,7 +382,7 @@ function MobileLesson({
   lesson: TimetableLesson;
   onOpen: (detail: CalendarItemDetail) => void;
 }) {
-  const start = periodBoundary(lesson.startPeriod, 'start');
+  const start = periodBoundary(lesson.startPeriod, 'start', lesson);
   const open = () => onOpen({ kind: 'lesson', lesson, date });
   return (
     <article

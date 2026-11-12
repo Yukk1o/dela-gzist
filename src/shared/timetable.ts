@@ -10,6 +10,8 @@ export interface TimetableLesson {
   readonly weekday: number;
   readonly startPeriod: number;
   readonly endPeriod: number;
+  readonly startMinute?: number;
+  readonly endMinute?: number;
   readonly periodsText: string;
   readonly weeksText: string;
   readonly weekNumbers: readonly number[];

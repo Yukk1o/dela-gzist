@@ -1,4 +1,5 @@
 import { contextBridge } from 'electron';
+import { academics } from './academics';
 import { version } from '../../package.json';
 import type { DelaApi } from '../shared/api';
 import { canvas } from './canvas';
@@ -26,6 +27,7 @@ import { workspace } from './workspace';
 import { vsjtu } from './vsjtu';
 
 contextBridge.exposeInMainWorld('dela', {
+  academics,
   platform: process.platform,
   vsjtu,
   version,

@@ -52,13 +52,13 @@ it('keeps capability setup inside the six-step wizard, supports going back, and 
     );
     await act(async () => button('开始').click());
     const shell = host.firstElementChild;
-    for (let index = 0; index < 5; index++) await act(async () => button('跳过').click());
+    for (let index = 0; index < 3; index++) await act(async () => button('跳过').click());
     expect(host.firstElementChild).toBe(shell);
-    expect(host.querySelector('[aria-label="第 6 步，共 6 步"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="第 4 步，共 4 步"]')).not.toBeNull();
     expect(done).not.toHaveBeenCalled();
     expect(state.mark).not.toHaveBeenCalled();
     await act(async () => button('上一步').click());
-    expect(host.querySelector('[aria-label="第 5 步，共 6 步"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="第 3 步，共 4 步"]')).not.toBeNull();
     expect(completeSetup).not.toHaveBeenCalled();
     await act(async () => button('跳过').click());
     await act(async () => button('完成配置').click());

@@ -1,8 +1,8 @@
 {
-  "name": "dela",
-  "version": "2.4.1",
+  "name": "dela-gzist",
+  "version": "2.4.1-gzist.1",
   "private": true,
-  "description": "A local-first campus project workspace",
+  "description": "广州理工学院本地 AI 与教务工作台",
   "author": "Dela contributors",
   "license": "GPL-3.0-or-later",
   "type": "module",

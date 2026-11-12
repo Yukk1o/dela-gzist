@@ -129,7 +129,7 @@ describe.each(['darwin', 'win32'])('校园窗口平台边界（%s）', (platform
     expect(options.frame).not.toBe(false);
     expect(options.closable).not.toBe(false);
     expect(options.webPreferences).toEqual({
-      partition: 'persist:dela-campus',
+      partition: 'persist:dela-gzist-campus',
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

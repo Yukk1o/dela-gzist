@@ -54,8 +54,8 @@ const sponsorChannelMeta: Record<SponsorChannelKind, { dotClass: string; label: 
 };
 
 const projectLinks: { icon: ReactNode; label: string; url: string }[] = [
-  { icon: <Globe />, label: '官网', url: 'https://dela.changyo.me' },
-  { icon: <GithubMark />, label: 'GitHub 仓库', url: 'https://github.com/Chang-Yo/Dela' },
+  { icon: <Globe />, label: '上游 Dela', url: 'https://github.com/Chang-Yo/Dela' },
+  { icon: <GithubMark />, label: '广州理工版仓库', url: 'https://github.com/Yukk1o/dela-gzist' },
 ];
 
 function PersonLinks({ links }: { links: SocialLink[] }) {

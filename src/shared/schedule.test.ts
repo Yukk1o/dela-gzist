@@ -14,6 +14,8 @@ const lesson: TimetableLesson = {
   weekday: 1,
   startPeriod: 1,
   endPeriod: 2,
+  startMinute: 8 * 60 + 20,
+  endMinute: 9 * 60 + 40,
   periodsText: '1-2',
   weeksText: '1,3',
   weekNumbers: [1, 3],
@@ -29,8 +31,8 @@ describe('campus lesson dates', () => {
       '2026-10-01T00:00:00Z',
     );
     expect(result.items.map((item) => item.startAt)).toEqual([
-      '2026-09-14T00:00:00.000Z',
-      '2026-09-28T00:00:00.000Z',
+      '2026-09-14T00:20:00.000Z',
+      '2026-09-28T00:20:00.000Z',
     ]);
     expect(result.items[0]!.endAt).toBe('2026-09-14T01:40:00.000Z');
     expect(result.warnings).toEqual([]);
@@ -45,7 +47,7 @@ describe('campus lesson dates', () => {
     const result = lessonOccurrences(
       [
         { ...lesson, weekNumbers: [] },
-        { ...lesson, endPeriod: 20 },
+        { ...lesson, endMinute: undefined },
       ],
       '2026-09-14',
       '2026-09-01T00:00:00Z',

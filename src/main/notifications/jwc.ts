@@ -7,8 +7,8 @@ import type { JwcNotice, NotificationItem } from '../../shared/notifications';
 import { getDatabase } from '../database';
 import { systemNotifyItem } from './system';
 
-const origin = 'https://jwc.sjtu.edu.cn';
-const listUrl = `${origin}/index/mxxsdtz.htm`;
+const origin = 'https://jwc.gzist.edu.cn';
+const listUrl = `${origin}/jwgl.htm`;
 const syncKey = 'jwc-sync';
 const accountKey = 'students';
 let nextCheckAt = 0;
@@ -26,37 +26,48 @@ export function parseJwcList(html: string, pageUrl: string) {
   const $ = load(html);
   const articleIds = [...html.matchAll(/['"]dynclicks_u\d+_(\d+)['"]/g)].map((match) => match[1]);
   const items: NotificationItem[] = [];
-  $('.ny_right_con .Newslist > ul > li').each((index, element) => {
-    const row = $(element);
-    const link = row.find('.wz a');
-    const url = new URL(link.attr('href')!, pageUrl);
-    const articleId =
-      articleIds[index] ??
-      url.searchParams.get('wbnewsid') ??
-      url.pathname.match(/\/(\d+)\.htm$/)?.[1];
-    const title = link.find('h2').text().trim();
-    const date = `${row.find('.sj p').text().trim().replace('.', '-')}-${row.find('.sj h2').text().trim().padStart(2, '0')}`;
-    if (
-      !['https:', 'http:'].includes(url.protocol) ||
-      !articleId ||
-      !title ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(date)
-    )
-      throw new Error('教务处通知列表内容不完整');
-    items.push({
-      id: `jwc:${articleId}`,
-      source: 'jwc',
-      category: null,
-      count: 1,
-      title,
-      body: row.find('.wz p').text().trim(),
-      createdAt: new Date(`${date}T00:00:00+08:00`).toISOString(),
-      readAt: null,
-      href: { kind: 'jwc', url: url.href },
+  $('li')
+    .filter((_, element) => $(element).children('span.d').length > 0)
+    .each((index, element) => {
+      const row = $(element);
+      const link = row.children('a[href]').first();
+      const url = new URL(link.attr('href')!, pageUrl);
+      const articleId =
+        articleIds[index] ??
+        url.searchParams.get('wbnewsid') ??
+        url.pathname.match(/\/(\d+)\.htm$/)?.[1];
+      const title = link.attr('title')?.trim() || link.text().trim();
+      const dateParts = row
+        .children('span.d')
+        .text()
+        .match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+      const date = dateParts
+        ? `${dateParts[1]}-${dateParts[2]!.padStart(2, '0')}-${dateParts[3]!.padStart(2, '0')}`
+        : '';
+      if (
+        !['https:', 'http:'].includes(url.protocol) ||
+        !articleId ||
+        !title ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      )
+        throw new Error('教务处通知列表内容不完整');
+      items.push({
+        id: `jwc:${articleId}`,
+        source: 'jwc',
+        category: null,
+        count: 1,
+        title,
+        body: row.find('p').text().trim(),
+        createdAt: new Date(`${date}T00:00:00+08:00`).toISOString(),
+        readAt: null,
+        href: { kind: 'jwc', url: url.href },
+      });
     });
-  });
   if (!items.length) throw new Error('未能读取教务处通知列表');
-  const next = $('.p_next a').attr('href');
+  const next = $('a[href]')
+    .filter((_, element) => /^(?:下页|下一页)$/.test($(element).text().trim()))
+    .first()
+    .attr('href');
   return { items, next: next ? new URL(next, pageUrl).href : null };
 }
 

@@ -73,11 +73,11 @@ function rowIndex(settingId: string): number {
   return ids.indexOf(settingId);
 }
 
-it('更新入口在「通用」里，且排在「试验功能」上方', async () => {
+it('更新入口在「通用」里，广州理工版不展示交大试验功能', async () => {
   await act(async () => root.render(<GeneralSection />));
   const update = rowIndex('check-update');
   expect(update).toBeGreaterThanOrEqual(0);
-  expect(rowIndex('experimental-features')).toBeGreaterThan(update);
+  expect(rowIndex('experimental-features')).toBe(-1);
 });
 
 it('「关于」页不再有更新入口', async () => {

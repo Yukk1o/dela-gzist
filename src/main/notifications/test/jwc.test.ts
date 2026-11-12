@@ -20,9 +20,9 @@ import {
 
 let db: Database.Database;
 const request = vi.fn<typeof fetch>();
-const origin = 'https://jwc.sjtu.edu.cn';
+const origin = 'https://jwc.gzist.edu.cn';
 const row = (id: number, day = '28', month = '2026.10', dynamic = false) =>
-  `<li><div class="sj"><h2>${day}</h2><p>${month}</p></div><div class="wz"><a href="${dynamic ? `/content.jsp?urltype=news.NewsContentUrl&wbnewsid=${id}` : `/info/1222/${id}.htm`}"><h2>通知 ${id}</h2></a><p>摘要 &amp; 内容</p></div></li>`;
+  `<li><span class="d fr">${month.replace('.', '年')}月${day}日</span><a href="${dynamic ? `/content.jsp?urltype=news.NewsContentUrl&wbnewsid=${id}` : `/info/2026/${id}.htm`}">通知 ${id}</a><p>摘要 &amp; 内容</p></li>`;
 const list = (rows: string, next = '') =>
   `<div class="ny_right_con"><div class="Newslist"><ul>${rows}</ul></div></div>${next ? `<span class="p_next"><a href="${next}">下页</a></span>` : ''}`;
 const page = (html: string) => new Response(html, { headers: { ETag: '"v1"' } });
@@ -64,7 +64,7 @@ it('识别两种文章地址、日期、摘要与真实下页地址', () => {
 
 it('学校列表中的公众号外链沿用学校文章 ID，不阻断其他通知', () => {
   const html =
-    list(row(3).replace('/info/1222/3.htm', 'https://mp.weixin.qq.com/s/example')) +
+    list(row(3).replace('/info/2026/3.htm', 'https://mp.weixin.qq.com/s/example')) +
     `<script>_showDynClickBatch(['dynclicks_u9_3'],[3],"wbnews",1707467176)</script>`;
   expect(parseJwcList(html, origin).items[0]).toMatchObject({
     id: 'jwc:3',
@@ -146,7 +146,7 @@ it('保留正文表格图片、识别附件，并在同一会话提交验证码�
     'jwc',
     '通知',
     '2026-10-28',
-    JSON.stringify({ kind: 'jwc', url: `${origin}/info/1222/991.htm` }),
+    JSON.stringify({ kind: 'jwc', url: `${origin}/info/2026/991.htm` }),
   );
   request.mockResolvedValueOnce(
     page(

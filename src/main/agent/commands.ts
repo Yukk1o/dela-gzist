@@ -2,9 +2,7 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { canvasTools } from './domain/canvas';
-import { classroomTools } from './domain/classroom';
 import { mailTools } from './domain/mail';
-import { shuiyuanTools } from './domain/shuiyuan';
 import { timetableTools } from './domain/timetable';
 import { todoTools } from './domain/todo';
 import { workspaceTools } from './domain/workspace';
@@ -13,17 +11,14 @@ import { prepareDocumentResource, releaseDocumentResource } from '../resources';
 import { resourceRefSchema } from '../../shared/resources';
 import { tool } from './domain/shared';
 import type { AgentTool } from './domain/shared';
-import { assertShuiyuanEnabled, experimentEnabled } from '../settings/prefs';
 
 // 这些是 shell 的业务命令，不常驻模型工具表；复用应用已有的缓存、登录与操作边界。
 const commandDomains = [
   { name: 'canvas', description: '查询、同步 Canvas 课程与资料', commands: canvasTools },
-  { name: 'classroom', description: '读取与下载课堂视频语音文稿', commands: classroomTools },
   { name: 'mail', description: '检索邮件、读取附件与准备邮件草稿', commands: mailTools },
-  { name: 'shuiyuan', description: '查看水源分类、话题、搜索与帖子内容', commands: shuiyuanTools },
   {
     name: 'timetable',
-    description: '查询课表与日程，同步课表、创建或删除日程',
+    description: '查询广州理工学院课表、成绩、考试安排与个人日程',
     commands: timetableTools,
   },
   { name: 'todo', description: '查询与管理待办、Canvas 作业', commands: todoTools },
@@ -60,9 +55,7 @@ async function executeDomainCommand(name: string, input: unknown) {
       typeof input === 'object' && input !== null && 'command' in input
         ? String(input.command)
         : '';
-    const shuiyuanOff = !experimentEnabled('shuiyuan');
     return Object.entries(commands)
-      .filter(([name]) => !shuiyuanOff || !Object.hasOwn(shuiyuanTools, name))
       .filter(([name]) => !selected || name === selected)
       .map(([name, command]) => ({
         name,
@@ -71,7 +64,6 @@ async function executeDomainCommand(name: string, input: unknown) {
       }));
   }
   if (!Object.hasOwn(commands, name)) throw new Error(`命令不存在：${name}，请使用 dela help`);
-  if (Object.hasOwn(shuiyuanTools, name)) assertShuiyuanEnabled();
   return commands[name]!.execute(input);
 }
 

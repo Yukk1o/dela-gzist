@@ -12,8 +12,9 @@ import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { attachContextMenu } from './ipc';
+import { campus as campusConfig } from '../shared/campus';
 
-export const CAMPUS_PARTITION = 'persist:dela-campus';
+export const CAMPUS_PARTITION = 'persist:dela-gzist-campus';
 let ready: Promise<Session> | undefined;
 let persistenceError: Error | undefined;
 
@@ -23,7 +24,7 @@ function snapshotPath(): string {
 
 function campusCookie(cookie: Cookie): boolean {
   const domain = cookie.domain?.replace(/^\./, '') ?? '';
-  return domain === 'sjtu.edu.cn' || domain.endsWith('.sjtu.edu.cn');
+  return domain === campusConfig.cookieDomain || domain.endsWith(`.${campusConfig.cookieDomain}`);
 }
 
 function cookieKey(cookie: Cookie): string {

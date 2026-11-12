@@ -35,13 +35,15 @@ async function run(command: string, input: unknown = {}) {
   return (await response.json()) as { ok: boolean; result?: unknown; error?: string };
 }
 
-it('hides and rejects shuiyuan commands while the feature is off', async () => {
+it('广州理工版不提供水源命令，保留教务和待办查询', async () => {
   const names = async () =>
     ((await run('help')).result as { name: string }[]).map((item) => item.name);
-  expect(await names()).toContain('search_shuiyuan_topics');
+  expect(await names()).not.toContain('search_shuiyuan_topics');
   flags.shuiyuan = false;
   expect(await names()).not.toContain('search_shuiyuan_topics');
   expect(await names()).toContain('query_todos');
+  expect(await names()).toContain('query_grades');
+  expect(await names()).toContain('query_exams');
   const result = await run('search_shuiyuan_topics', { query: '数据结构' });
-  expect(result).toMatchObject({ ok: false, error: '水源功能已关闭' });
+  expect(result).toMatchObject({ ok: false, error: expect.stringContaining('命令不存在') });
 });

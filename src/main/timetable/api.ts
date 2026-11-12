@@ -16,12 +16,14 @@ import {
   getCampusSession,
   openCampusLoginWindow,
 } from '../campus';
-import { fetchGraduateTimetable, GRADUATE_CAMPUS_ORIGIN, GRADUATE_LOGIN_URL } from './graduate';
+import { campus, isAcademicPage, currentAcademicSemester } from '../../shared/campus';
+import { academicSemesterParams, clearAcademicData } from '../academics/api';
+import { parsePeriodTimes } from './periods';
+import { readSetting } from '../settings/prefs';
 
-const CAMPUS_ORIGIN = 'https://i.sjtu.edu.cn';
-const LOGIN_URL = `${CAMPUS_ORIGIN}/jaccountlogin`;
-const TIMETABLE_URL = `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151`;
-let loginUrl = LOGIN_URL;
+const CAMPUS_ORIGIN = campus.academicBase;
+const LOGIN_URL = campus.loginUrl;
+const TIMETABLE_URL = `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N253508`;
 
 const rawLessonSchema = z
   .object({
@@ -129,12 +131,7 @@ export function parseSemesterStart(values: readonly unknown[] | undefined): stri
 }
 
 export function currentSemester(now = new Date()): string {
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  if (month >= 9) return `${year}-${year + 1}-1`;
-  if (month <= 2) return `${year - 1}-${year}-1`;
-  if (month <= 7) return `${year - 1}-${year}-2`;
-  return `${year - 1}-${year}-3`;
+  return currentAcademicSemester(now);
 }
 
 export function resolveSemester(requested: unknown): string {
@@ -150,11 +147,7 @@ function syncRow(
 }
 
 function semesterParams(semester: string): { xnm: string; xqm: string } {
-  const parsed = semesterSchema.safeParse(semester);
-  if (!parsed.success) throw new Error('学期格式无效');
-  const [year, , term] = parsed.data.split('-');
-  const termCodes: Record<string, string> = { '1': '3', '2': '12', '3': '16' };
-  return { xnm: year!, xqm: termCodes[term!]! };
+  return academicSemesterParams(semester);
 }
 
 function parsePeriods(value: string | undefined): { start: number; end: number; text: string } {
@@ -186,7 +179,7 @@ export function parseWeekNumbers(value: string | undefined): number[] {
   return [...result].sort((a, b) => a - b);
 }
 
-function mapRow(row: LessonRow): TimetableLesson {
+function mapRow(row: LessonRow, periods: Record<string, [number, number]>): TimetableLesson {
   let weekNumbers: number[] = [];
   try {
     const parsed: unknown = JSON.parse(row.week_numbers);
@@ -207,6 +200,8 @@ function mapRow(row: LessonRow): TimetableLesson {
     weekday: row.weekday,
     startPeriod: row.start_period,
     endPeriod: row.end_period,
+    startMinute: periods[row.start_period]?.[0],
+    endMinute: periods[row.end_period]?.[1],
     periodsText: row.periods_text,
     weeksText: row.weeks_text,
     weekNumbers,
@@ -215,25 +210,20 @@ function mapRow(row: LessonRow): TimetableLesson {
   };
 }
 
-export function openLoginWindow(sender: WebContents): Promise<TimetableResult> {
-  const url = loginUrl;
-  const graduate = url === GRADUATE_LOGIN_URL;
-  return openCampusLoginWindow({
+export async function openLoginWindow(sender: WebContents): Promise<TimetableResult> {
+  const result = await openCampusLoginWindow({
     sender,
-    title: graduate ? '登录研究生教学信息平台' : '登录教学信息服务网',
-    url,
-    reached: (target) =>
-      graduate
-        ? target.startsWith(`${GRADUATE_CAMPUS_ORIGIN}/`)
-        : (target.startsWith('https://i.sjtu.edu.cn/') ||
-            target.startsWith('http://i.sjtu.edu.cn/')) &&
-          !target.includes('/jaccountlogin'),
-    retryProbe: graduate,
+    title: '登录广州理工学院教务系统',
+    url: LOGIN_URL,
+    reached: isAcademicPage,
+    retryProbe: true,
     probe: async () => {
-      await fetchTimetableData(currentSemester());
+      await fetchTimetable(currentSemester());
       await flushCampusSession();
     },
   });
+  if (result.ok) clearAcademicData();
+  return result;
 }
 
 async function fetchTimetable(semester: string) {
@@ -246,7 +236,7 @@ async function fetchTimetable(semester: string) {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       'X-Requested-With': 'XMLHttpRequest',
-      Referer: `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkbIndex.html?gnmkdm=N2151`,
+      Referer: `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkbIndex.html?gnmkdm=N253508`,
     },
     body: body.toString(),
   });
@@ -264,14 +254,8 @@ async function fetchTimetable(semester: string) {
 async function fetchTimetableData(semester: string) {
   const data = await fetchTimetable(semester);
   if (data.kbList.length === 0) {
-    loginUrl = GRADUATE_LOGIN_URL;
-    const graduate = await fetchGraduateTimetable(semester);
-    if (graduate.lessons.length === 0)
-      throw new Error('本科和研究生课表均为空，请确认学期；原有课表不会被清除');
-    return graduate;
+    throw new Error('该学期课表为空，请确认学期；原有课表不会被清除');
   }
-
-  loginUrl = LOGIN_URL;
   const lessons = data.kbList.flatMap((raw, index) => {
     const courseName = raw.kcmc?.trim();
     const weekday = Number(raw.xqj);
@@ -307,6 +291,24 @@ async function fetchTimetableData(semester: string) {
 export async function syncTimetable(semester: string): Promise<TimetableResult> {
   try {
     const { lessons, semesterStart } = await fetchTimetableData(semester);
+    const periodText = await campusRequest(
+      await getCampusSession(),
+      `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxRjc.html?gnmkdm=N253508`,
+      {
+        service: '节次时间',
+        loginError: '教务登录已失效，请重新登录',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-Requested-With': 'XMLHttpRequest',
+          Referer: `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkbIndex.html?gnmkdm=N253508`,
+        },
+        body: new URLSearchParams(semesterParams(semester)).toString(),
+      },
+    );
+    const periods = parsePeriodTimes(JSON.parse(periodText));
+    if (lessons.some((lesson) => !periods[lesson.startPeriod] || !periods[lesson.endPeriod]))
+      throw new Error('学校返回的节次时间不完整，原有课表已保留');
     await flushCampusSession();
 
     const db = getDatabase();
@@ -320,6 +322,10 @@ export async function syncTimetable(semester: string): Promise<TimetableResult> 
     );
     const syncedAt = new Date().toISOString();
     db.transaction(() => {
+      db.prepare('INSERT OR REPLACE INTO workspace_settings (key, value) VALUES (?, ?)').run(
+        `gzist-periods:${semester}`,
+        JSON.stringify(periods),
+      );
       db.prepare('DELETE FROM timetable_lessons WHERE semester = ?').run(semester);
       for (const lesson of lessons) insert.run(lesson);
       db.prepare(
@@ -346,7 +352,9 @@ export function listLessons(semester: string): TimetableLesson[] {
        ORDER BY weekday, start_period, course_name`,
     )
     .all(semester) as LessonRow[];
-  return rows.map(mapRow);
+  const saved = readSetting(`gzist-periods:${semester}`);
+  const periods: Record<string, [number, number]> = saved ? JSON.parse(saved) : {};
+  return rows.map((row) => mapRow(row, periods));
 }
 
 export const scheduleQuerySchema = z

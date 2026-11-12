@@ -1,4 +1,3 @@
-import { classPeriods } from '../../../shared/schedule';
 import type { CSSProperties } from 'react';
 import {
   calendarEventColors,
@@ -134,7 +133,7 @@ export function semesterLabel(semester: string): string {
   return `${start}-${end} ${names[term ?? ''] ?? `第 ${term} 学期`}`;
 }
 
-export function semesterOptions(current: string): string[] {
+export function semesterOptions(current: string, count = 6): string[] {
   const [startText, , termText] = current.split('-');
   const start = Number(startText);
   const term = Number(termText);
@@ -142,7 +141,7 @@ export function semesterOptions(current: string): string[] {
   const options = [current];
   let year = start;
   let semester = term;
-  while (options.length < 6) {
+  while (options.length < count) {
     semester -= 1;
     if (semester === 0) {
       semester = 3;
@@ -163,11 +162,12 @@ export function formatSyncTime(value: string | null): string {
   }).format(new Date(value))}`;
 }
 
-export function periodBoundary(period: number, edge: 'start' | 'end'): number {
-  const known = classPeriods[period - 1];
-  if (known) return edge === 'start' ? known[0] : known[1];
-  const start = timelineStart + (period - 1) * 55;
-  return edge === 'start' ? start : start + 45;
+export function periodBoundary(
+  _period: number,
+  edge: 'start' | 'end',
+  lesson?: TimetableLesson,
+): number {
+  return (edge === 'start' ? lesson?.startMinute : lesson?.endMinute) ?? NaN;
 }
 
 export function minuteOfDay(date: Date): number {

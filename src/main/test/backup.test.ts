@@ -86,12 +86,12 @@ beforeEach(() => {
   );
   mkdirSync(join(userData, 'pi', 'sessions'), { recursive: true });
   writeFileSync(join(userData, 'pi', 'sessions', 'a.jsonl'), 'keep');
-  mkdirSync(join(state.documents, 'Dela'), { recursive: true });
-  writeFileSync(join(state.documents, 'Dela', 'note.txt'), 'keep');
+  mkdirSync(join(state.documents, 'Dela-GZIST'), { recursive: true });
+  writeFileSync(join(state.documents, 'Dela-GZIST', 'note.txt'), 'keep');
   // 用户自己写的 Skill 在 ~/.dela/skills，不在应用数据目录里，得单独带走。
   state.home = join(base, 'home');
-  mkdirSync(join(state.home, '.dela', 'skills', 'mine'), { recursive: true });
-  writeFileSync(join(state.home, '.dela', 'skills', 'mine', 'SKILL.md'), 'keep');
+  mkdirSync(join(state.home, '.dela-gzist', 'skills', 'mine'), { recursive: true });
+  writeFileSync(join(state.home, '.dela-gzist', 'skills', 'mine', 'SKILL.md'), 'keep');
 });
 
 afterEach(() => {

@@ -21,6 +21,8 @@ import { closeDatabase, getDatabase, SCHEMA_VERSION } from './database';
 import { runMigrations } from './migrations';
 import { registerMailIpc, hasMailComposer } from './mail/ipc';
 import { registerTimetableIpc } from './timetable/ipc';
+import { registerAcademicsIpc } from './academics/ipc';
+import { campus } from '../shared/campus';
 import { registerVsjtuIpc } from './vsjtu/ipc';
 import { attachContextMenu, checkWorkspaceSender } from './ipc';
 import type { TrayAction } from '../shared/window';
@@ -61,6 +63,9 @@ import Database from 'better-sqlite3';
 import { spawn as spawnPty } from 'node-pty';
 
 // 在数据库、窗口和托盘初始化前抢占锁，重复启动只唤起已有实例。
+app.setName(campus.productName);
+if (!process.argv.includes('--terminal-smoke-test'))
+  app.setPath('userData', join(app.getPath('appData'), 'Dela-GZIST'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
@@ -154,7 +159,7 @@ app
     if (!hasSingleInstanceLock) return;
     // Windows 系统通知按 AppUserModelID 识别应用；与 electron-builder.yml 的 appId 一致，
     // 开发运行（未走安装器）也需要显式设置才能弹通知。
-    if (process.platform === 'win32') app.setAppUserModelId('io.dela.desktop');
+    if (process.platform === 'win32') app.setAppUserModelId(campus.appId);
     if (process.platform === 'darwin') {
       const action = (value: TrayAction) => () => {
         if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -164,7 +169,7 @@ app
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           {
-            label: 'Dela',
+            label: campus.productName,
             submenu: [
               { role: 'about' },
               { label: '设置…', click: action('open-settings') },
@@ -220,6 +225,7 @@ app
     registerCacheIpc();
     registerMailIpc();
     registerTimetableIpc();
+    registerAcademicsIpc();
     registerVsjtuIpc();
     registerCanvasIpc();
     registerShuiyuanIpc();
@@ -458,7 +464,7 @@ function createTray(window: BrowserWindow): void {
     .createFromPath(join(app.getAppPath(), 'assets', `Dela_${savedIcon()}_bg.png`))
     .resize({ width: 16, height: 16 });
   tray = new Tray(icon);
-  tray.setToolTip('Dela');
+  tray.setToolTip(campus.productName);
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: '打开主窗口', click: () => showMainWindow(window) },

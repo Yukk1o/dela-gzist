@@ -93,8 +93,9 @@ it('shows capability setup once without resetting existing skills or other onboa
   ).toEqual({ value: '1' });
 });
 
-it('lists the shuiyuan skill only while the feature is enabled', async () => {
-  expect(await byName('shuiyuan')).toHaveLength(1);
+it('does not bundle SJTU community or classroom skills', async () => {
+  expect(await byName('shuiyuan')).toHaveLength(0);
+  expect(await byName('classroom')).toHaveLength(0);
   expect(effectiveDisabledSkills().has('shuiyuan')).toBe(false);
   state.shuiyuan = false;
   expect(await byName('shuiyuan')).toHaveLength(0);
@@ -112,7 +113,7 @@ it('writes the document skill but excludes it until its dependencies are install
 
 describe('分组', () => {
   it('分开 Dela 内置与本机目录里用户自己放的', async () => {
-    writeSkill(join(home, '.dela', 'skills'), 'my-notes');
+    writeSkill(join(home, '.dela-gzist', 'skills'), 'my-notes');
     writeSkill(join(home, '.agents', 'skills'), 'from-agents');
     const skills = await listSkills();
     const origin = (name: string) => skills.find((skill) => skill.name === name)?.origin;
@@ -202,7 +203,7 @@ describe('分组', () => {
 });
 
 it('restores user-edited builtin skills to the bundled version', async () => {
-  const path = join(home, '.dela', 'skills', 'canvas', 'SKILL.md');
+  const path = join(home, '.dela-gzist', 'skills', 'canvas', 'SKILL.md');
   const bundled = readFileSync(path, 'utf8');
   writeFileSync(path, `${bundled}\n用户补充的指引\n`);
   vi.resetModules();

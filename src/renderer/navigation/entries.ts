@@ -4,7 +4,6 @@ import { CalendarDays, FolderOpen, Mail, MonitorPlay } from 'lucide-react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ShuiyuanIcon } from '../components/ui/shuiyuan-icon';
-import { useExperimentEnabled } from '../features/settings/experimental';
 
 export type NavEntryId = 'sources' | 'mail' | 'timetable' | 'classroom' | 'shuiyuan';
 
@@ -15,7 +14,7 @@ export const navEntries: Array<{
 }> = [
   { id: 'sources', label: '资料', icon: FolderOpen },
   { id: 'mail', label: '邮箱', icon: Mail },
-  { id: 'timetable', label: '课表', icon: CalendarDays },
+  { id: 'timetable', label: '教务', icon: CalendarDays },
   { id: 'classroom', label: '课堂视频', icon: MonitorPlay },
   { id: 'shuiyuan', label: '水源(beta)', icon: ShuiyuanIcon },
 ];
@@ -40,8 +39,7 @@ export const useNavEntryPrefs = create<{
 
 /** 功能本身是否开启（关闭时入口不可显示、设置里的显示开关置灰）。 */
 export function useNavEntryAvailable(): (id: NavEntryId) => boolean {
-  const shuiyuan = useExperimentEnabled('shuiyuan');
-  return (id) => id !== 'shuiyuan' || shuiyuan;
+  return (id) => id !== 'classroom' && id !== 'shuiyuan';
 }
 
 export function useVisibleNavEntries() {

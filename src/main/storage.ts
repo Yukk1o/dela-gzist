@@ -7,7 +7,7 @@ export function storageDirectory() {
   const row = getDatabase()
     .prepare("SELECT value FROM workspace_settings WHERE key='directory'")
     .get() as { value: string } | undefined;
-  return row?.value ?? join(app.getPath('documents'), 'Dela');
+  return row?.value ?? join(app.getPath('documents'), 'Dela-GZIST');
 }
 
 // A single path component, including Windows device names and trailing dots/spaces.

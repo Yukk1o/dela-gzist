@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from 'better-sqlite3';
 import { deleteCalendarEvent, parseSemesterStart, parseWeekNumbers, syncTimetable } from '../api';
-import { fetchGraduateTimetable } from '../graduate';
 import { campusRequest, getCampusSession } from '../../campus';
 import { getDatabase } from '../../database';
 
@@ -62,11 +61,10 @@ describe('deleteCalendarEvent', () => {
 });
 
 describe('syncTimetable', () => {
-  it('keeps cached lessons when both sources are empty', async () => {
+  it('keeps cached lessons when the requested semester is empty', async () => {
     vi.clearAllMocks();
     vi.mocked(getCampusSession).mockResolvedValue({} as never);
     vi.mocked(campusRequest).mockResolvedValue(JSON.stringify({ kbList: [] }));
-    vi.mocked(fetchGraduateTimetable).mockResolvedValue({ lessons: [], semesterStart: null });
 
     await expect(syncTimetable('2026-2027-1')).resolves.toMatchObject({
       ok: false,

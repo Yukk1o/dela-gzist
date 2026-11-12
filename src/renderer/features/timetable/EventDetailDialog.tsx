@@ -65,8 +65,8 @@ export function EventDetailDialog({
 
   let timeText;
   if (detail.kind === 'lesson') {
-    const start = periodBoundary(detail.lesson.startPeriod, 'start');
-    const end = periodBoundary(detail.lesson.endPeriod, 'end');
+    const start = periodBoundary(detail.lesson.startPeriod, 'start', detail.lesson);
+    const end = periodBoundary(detail.lesson.endPeriod, 'end', detail.lesson);
     timeText = detail.date
       ? `${formatMonthDay(detail.date)}（${weekdayName(detail.date)}）${formatMinuteOfDay(start)} – ${formatMinuteOfDay(end)}`
       : `${formatMinuteOfDay(start)} – ${formatMinuteOfDay(end)}`;

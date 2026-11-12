@@ -47,7 +47,7 @@ Var DelaAutoStart
     ${EndIf}
     ${NSD_CreateCheckbox} 0 0 100% 12u "开机时启动 Dela（启动到托盘）"
     Pop $DelaAutoStartCheckbox
-    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "io.dela.desktop"
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "io.dela.gzist.desktop"
     ${If} $0 == ""
       ${NSD_SetState} $DelaAutoStartCheckbox ${BST_UNCHECKED}
     ${Else}
@@ -73,13 +73,13 @@ Var DelaAutoStart
 !macro customInstall
   # 静默安装不会显示选项页，此时变量为空：保留原有启动项，不能把升级当成取消勾选。
   ${If} $DelaAutoStart == "1"
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "io.dela.desktop" '"$INSTDIR\Dela.exe" --hidden'
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "io.dela.gzist.desktop" '"$INSTDIR\Dela-GZIST.exe" --hidden'
   ${ElseIf} $DelaAutoStart == "0"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "io.dela.desktop"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "io.dela.gzist.desktop"
   ${EndIf}
   DetailPrint "应用文件和快捷方式安装完成。请完成向导以启动 Dela。"
 !macroend
 
 !macro customUnInstall
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "io.dela.desktop"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "io.dela.gzist.desktop"
 !macroend

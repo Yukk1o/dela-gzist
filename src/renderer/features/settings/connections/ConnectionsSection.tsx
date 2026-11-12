@@ -1,8 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Dialog } from 'radix-ui';
-import { CalendarDays, GraduationCap, Mail, type LucideIcon } from 'lucide-react';
+import { CalendarDays, Mail, type LucideIcon } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
-import { ShuiyuanIcon } from '../../../components/ui/shuiyuan-icon';
 import {
   Select,
   SelectContent,
@@ -12,12 +10,10 @@ import {
 } from '../../../components/ui/select';
 import { cn } from '../../../lib/utils';
 import type { MailTrashRetention } from '../../../../shared/api';
-import { CanvasTokenForm } from './CanvasTokenForm';
 import { SectionHeader } from '../SectionHeader';
 import { SettingsGroup } from '../SettingsGroup';
-import { errorText, useWorkspaceStore } from '../../../workspace/store';
+import { errorText } from '../../../workspace/store';
 import { showToast } from '../../../app/toasts';
-import { dialogOverlay, dialogPanel } from '../../../components/ui/motion';
 
 type ConnectionsSectionProps = {
   onOpenMail: () => void;
@@ -29,7 +25,7 @@ type Connection = {
   /** 搜索直达与高亮目标（data-setting-id）。 */
   itemId: string;
   name: string;
-  icon: LucideIcon | typeof ShuiyuanIcon;
+  icon: LucideIcon;
   state: string;
   connected: boolean;
   /** 防误解的关键说明（如授权范围）；其余连接不显示描述。 */
@@ -40,33 +36,22 @@ type Connection = {
   extra?: ReactNode;
 };
 
-/** 设置 › 连接：Canvas、邮箱、教务、水源四张连接卡的容器。 */
-export function ConnectionsSection({
-  onOpenMail,
-  onOpenShuiyuan,
-  onOpenTimetable,
-}: ConnectionsSectionProps) {
-  const canvas = useWorkspaceStore((state) => state.canvas);
+/** 设置 › 连接：邮箱与广州理工教务连接卡的容器。 */
+export function ConnectionsSection({ onOpenMail, onOpenTimetable }: ConnectionsSectionProps) {
   const [mailAddress, setMailAddress] = useState<string | null>(null);
   const [trashRetention, setTrashRetention] = useState<MailTrashRetention | null>(null);
   const [timetableSyncedAt, setTimetableSyncedAt] = useState<string | null>(null);
-  const [shuiyuanUser, setShuiyuanUser] = useState<string | null>(null);
-  const [shuiyuanBusy, setShuiyuanBusy] = useState(false);
-  const [shuiyuanConfirm, setShuiyuanConfirm] = useState(false);
-  const [dialog, setDialog] = useState<'canvas' | null>(null);
-  const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const dela = window.dela;
     if (!dela) return undefined;
     let active = true;
-    void Promise.all([dela.mail.getState(), dela.timetable.getState(), dela.shuiyuan.getState()])
-      .then(([mailState, timetableState, shuiyuanState]) => {
+    void Promise.all([dela.mail.getState(), dela.timetable.getState()])
+      .then(([mailState, timetableState]) => {
         if (!active) return;
         setMailAddress(mailState.account?.address ?? null);
         setTimetableSyncedAt(timetableState.lastSyncedAt);
-        setShuiyuanUser(shuiyuanState.connected ? shuiyuanState.username : null);
         if (mailState.account) {
           void dela.mail
             .getTrashRetention()
@@ -84,42 +69,6 @@ export function ConnectionsSection({
     };
   }, []);
 
-  // 水源解绑：先远端 revoke 再清本地；两步确认防误触（重新授权成本高）。
-  const unbindShuiyuan = async () => {
-    if (!window.dela || !shuiyuanConfirm) {
-      setShuiyuanConfirm(true);
-      return;
-    }
-    setShuiyuanBusy(true);
-    try {
-      await window.dela.shuiyuan.unbind();
-      setShuiyuanUser(null);
-      setShuiyuanConfirm(false);
-    } catch (cause) {
-      showToast({ variant: 'error', title: '解除绑定失败', description: errorText(cause) });
-    } finally {
-      setShuiyuanBusy(false);
-    }
-  };
-
-  const openDialog = () => {
-    setDialog('canvas');
-  };
-
-  const disconnectCanvas = async () => {
-    if (!window.dela) return;
-    setBusy(true);
-    try {
-      await window.dela.canvas.disconnect();
-      useWorkspaceStore.getState().setCanvas(await window.dela.canvas.getState());
-      setDialog(null);
-    } catch (cause) {
-      showToast({ variant: 'error', title: '断开连接失败', description: errorText(cause) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const changeRetention = async (value: MailTrashRetention) => {
     if (!window.dela || trashRetention === null) return;
     const previous = trashRetention;
@@ -133,15 +82,6 @@ export function ConnectionsSection({
   };
 
   const connections: Connection[] = [
-    {
-      itemId: 'canvas',
-      name: 'Canvas',
-      icon: GraduationCap,
-      state: canvas.connected ? '已连接' : '未连接',
-      connected: canvas.connected,
-      actionLabel: canvas.connected ? '管理' : '配置',
-      onClick: openDialog,
-    },
     {
       itemId: 'mail',
       name: '学校邮箱',
@@ -174,29 +114,12 @@ export function ConnectionsSection({
     },
     {
       itemId: 'timetable',
-      name: '教学信息服务网',
+      name: '广州理工学院教务',
       icon: CalendarDays,
       state: timetableSyncedAt ? '已同步' : '未同步',
       connected: Boolean(timetableSyncedAt),
       actionLabel: '前往',
       onClick: onOpenTimetable,
-    },
-    {
-      itemId: 'shuiyuan',
-      name: '水源社区',
-      icon: ShuiyuanIcon,
-      state: shuiyuanUser ? `已绑定 · @${shuiyuanUser}` : '未绑定',
-      connected: Boolean(shuiyuanUser),
-      // 授权范围是绑定前的知情要件，保留。
-      description: '读取与写入授权（浏览、回复、私信）',
-      actionLabel: shuiyuanUser
-        ? shuiyuanBusy
-          ? '解除中…'
-          : shuiyuanConfirm
-            ? '确认解除？'
-            : '解除绑定'
-        : '去绑定',
-      onClick: shuiyuanUser ? () => void unbindShuiyuan() : onOpenShuiyuan,
     },
   ];
 
@@ -268,39 +191,6 @@ export function ConnectionsSection({
           )}
         </ul>
       </SettingsGroup>
-      <Dialog.Root
-        onOpenChange={(open) => {
-          if (!open && !busy) setDialog(null);
-        }}
-        open={dialog !== null}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className={dialogOverlay} />
-          <Dialog.Content className={cn(dialogPanel, 'max-h-[85vh] max-w-md overflow-y-auto')}>
-            <Dialog.Title className="text-base font-semibold">配置 Canvas</Dialog.Title>
-            <Dialog.Description className="mt-2 text-xs leading-relaxed text-ink-3">
-              {canvas.connected
-                ? '输入新的个人 Access Token 以替换当前连接。'
-                : '输入个人 Access Token，验证成功后读取课程列表；凭据加密保存在本机。'}
-            </Dialog.Description>
-            <CanvasTokenForm
-              actions={
-                <>
-                  {canvas.connected && (
-                    <Button disabled={busy} onClick={() => void disconnectCanvas()} variant="ghost">
-                      断开
-                    </Button>
-                  )}
-                  <Button disabled={busy} onClick={() => setDialog(null)} variant="ghost">
-                    取消
-                  </Button>
-                </>
-              }
-              onSuccess={() => setDialog(null)}
-            />
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
     </div>
   );
 }

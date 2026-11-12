@@ -13,6 +13,7 @@ import { ipcMain } from 'electron';
 import { clearCampusSession } from '../campus';
 import { checkWorkspaceSender } from '../ipc';
 import { type TimetableResult } from '../../shared/api';
+import { clearAcademicData } from '../academics/api';
 
 export function registerTimetableIpc(): void {
   ipcMain.handle('timetable:get-state', async (_event, requested?: unknown) =>
@@ -21,6 +22,7 @@ export function registerTimetableIpc(): void {
   ipcMain.handle('timetable:connect', (event) => openLoginWindow(event.sender));
   ipcMain.handle('timetable:disconnect', async (): Promise<TimetableResult> => {
     await clearCampusSession();
+    clearAcademicData();
     return { ok: true };
   });
   ipcMain.handle('timetable:list-lessons', (_event, requested?: unknown) =>

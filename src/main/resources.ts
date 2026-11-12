@@ -116,7 +116,14 @@ export async function prepareDocumentFile(writeInput: (path: string) => Promise<
     return {
       jobId: basename(job),
       python: documentPython(),
-      script: join(app.getPath('home'), '.dela', 'skills', DOCUMENT_SKILL, 'scripts', 'read.py'),
+      script: join(
+        app.getPath('home'),
+        '.dela-gzist',
+        'skills',
+        DOCUMENT_SKILL,
+        'scripts',
+        'read.py',
+      ),
       input,
       output: join(job, 'output'),
     };

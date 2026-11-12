@@ -1,5 +1,5 @@
 // Skills：发现、加载与渐进注入由 Pi 完成（agentskills.io 规范）。这里只负责
-// 把 Dela 内置的领域 skill 写进 ~/.dela/skills、给设置页列出可见 skill、维护禁用名单。
+// 把 Dela 内置的领域 skill 写进 ~/.dela-gzist/skills、给设置页列出可见 skill、维护禁用名单。
 // 设置页按来处分组：内置、本机目录、Pi package、每个本地项目；后两者按 SKILL.md 路径开关。
 import { app, shell } from 'electron';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -19,10 +19,8 @@ import {
 import documentSkill from './skills/document-reading/SKILL.md?raw';
 import documentScript from './skills/document-reading/scripts/read.py?raw';
 import canvasSkill from './skills/canvas/SKILL.md?raw';
-import classroomSkill from './skills/classroom/SKILL.md?raw';
 import curriculumSkill from './skills/curriculum/SKILL.md?raw';
 import mailSkill from './skills/mail/SKILL.md?raw';
-import shuiyuanSkill from './skills/shuiyuan/SKILL.md?raw';
 import todoSkill from './skills/todo/SKILL.md?raw';
 
 const SKILL_ENTRY_FILE = 'SKILL.md';
@@ -41,9 +39,9 @@ export function completeCapabilitySetup(): void {
     .run(CAPABILITY_SETUP_KEY, '1');
 }
 
-/** 全局 Skill 根目录：~/.dela/skills（内置 Skill 随应用写入；用户自己的 Skill 也放这里）。 */
+/** 全局 Skill 根目录：~/.dela-gzist/skills（内置 Skill 随应用写入；用户自己的 Skill 也放这里）。 */
 export function builtinSkillsDirectory(): string {
-  return join(app.getPath('home'), '.dela', 'skills');
+  return join(app.getPath('home'), '.dela-gzist', 'skills');
 }
 
 /** 本机全局 Skill 目录（与 Pi 的默认位置一致）；项目级的随会话 cwd 由 Pi 发现，见 discovery.ts。 */
@@ -57,9 +55,7 @@ const BUILTIN_SKILLS: Readonly<Record<string, { path: string; content: string }[
     { path: SKILL_ENTRY_FILE, content: documentSkill },
     { path: 'scripts/read.py', content: documentScript },
   ],
-  shuiyuan: [{ path: SKILL_ENTRY_FILE, content: shuiyuanSkill }],
   canvas: [{ path: SKILL_ENTRY_FILE, content: canvasSkill }],
-  classroom: [{ path: SKILL_ENTRY_FILE, content: classroomSkill }],
   mail: [{ path: SKILL_ENTRY_FILE, content: mailSkill }],
   todo: [{ path: SKILL_ENTRY_FILE, content: todoSkill }],
   curriculum: [{ path: SKILL_ENTRY_FILE, content: curriculumSkill }],
@@ -67,7 +63,7 @@ const BUILTIN_SKILLS: Readonly<Record<string, { path: string; content: string }[
 
 let builtinEnsured = false;
 /**
- * 进程内首次使用时把内置 Skill 覆写到 ~/.dela/skills：正文与 dela 命令面强绑定，
+ * 进程内首次使用时把内置 Skill 覆写到 ~/.dela-gzist/skills：正文与 dela 命令面强绑定，
  * 始终以应用内版本为准，用户对内置 Skill 的编辑会被还原（自定义请另建名字不同的 Skill）。
  * 先比后写：无变化不写盘，也避开文件被短暂占用时启动失败。
  */

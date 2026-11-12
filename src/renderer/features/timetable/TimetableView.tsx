@@ -33,6 +33,7 @@ import {
 import { cn } from '../../lib/utils';
 import { showToast } from '../../app/toasts';
 import { errorText } from '../../workspace/store';
+import { AcademicRecords } from './AcademicRecords';
 
 type CalendarMode = 'week' | 'month';
 
@@ -41,6 +42,40 @@ let semesterRequest = 0;
 let eventsRequest = 0;
 
 export function TimetableView({ onOpenTodo }: { onOpenTodo?: (todoId: string) => void }) {
+  const [tab, setTab] = useState<'timetable' | 'grades' | 'exams'>('timetable');
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <nav className="flex flex-wrap gap-2 px-4 py-2" aria-label="教务查询">
+        {(
+          [
+            ['timetable', '课表'],
+            ['grades', '成绩'],
+            ['exams', '考试'],
+          ] as const
+        ).map(([value, label]) => (
+          <Button
+            key={value}
+            size="sm"
+            variant={tab === value ? 'secondary' : 'ghost'}
+            aria-current={tab === value ? 'page' : undefined}
+            onClick={() => setTab(value)}
+          >
+            {label}
+          </Button>
+        ))}
+      </nav>
+      <div className="min-h-0 flex-1">
+        {tab === 'timetable' ? (
+          <TimetableCalendar onOpenTodo={onOpenTodo} />
+        ) : (
+          <AcademicRecords key={tab} kind={tab} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TimetableCalendar({ onOpenTodo }: { onOpenTodo?: (todoId: string) => void }) {
   if (!window.dela) {
     return (
       <DesktopOnlyNotice
