@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron';
 import { z } from 'zod';
+import { load } from 'cheerio';
 import {
   calendarEventColors,
   type CalendarEvent,
@@ -18,12 +19,13 @@ import {
 } from '../campus';
 import { campus, isAcademicPage, currentAcademicSemester } from '../../shared/campus';
 import { academicSemesterParams, clearAcademicData } from '../academics/api';
-import { parsePeriodTimes } from './periods';
+import { gzistPeriodTimes } from './periods';
 import { readSetting } from '../settings/prefs';
 
 const CAMPUS_ORIGIN = campus.academicBase;
 const LOGIN_URL = campus.loginUrl;
-const TIMETABLE_URL = `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N253508`;
+const TIMETABLE_URL = `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151`;
+const TIMETABLE_INDEX_URL = `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default`;
 
 const rawLessonSchema = z
   .object({
@@ -48,6 +50,7 @@ const responseSchema = z
   .object({
     kbList: z.array(rawLessonSchema),
     rqazcList: z.array(z.unknown()).optional(),
+    sjkList: z.array(z.object({ kcmc: z.string(), qsjsz: z.string() })).optional(),
   })
   .passthrough();
 const semesterSchema = z.string().regex(/^\d{4}-\d{4}-[123]$/);
@@ -163,10 +166,10 @@ function parsePeriods(value: string | undefined): { start: number; end: number; 
 
 export function parseWeekNumbers(value: string | undefined): number[] {
   if (!value) return [];
-  const odd = /单/.test(value);
-  const even = /双/.test(value);
   const result = new Set<number>();
-  for (const part of value.replace(/[周()（）单双]/g, '').split(/[,，、]/)) {
+  for (const part of value.split(/[,，、;；]/)) {
+    const odd = /单/.test(part);
+    const even = /双/.test(part);
     const numbers = part.match(/\d+/g)?.map(Number) ?? [];
     if (numbers.length === 0) continue;
     const start = numbers[0]!;
@@ -211,6 +214,13 @@ function mapRow(row: LessonRow, periods: Record<string, [number, number]>): Time
 }
 
 export async function openLoginWindow(sender: WebContents): Promise<TimetableResult> {
+  try {
+    await fetchTimetable(currentSemester());
+    await flushCampusSession();
+    return { ok: true };
+  } catch {
+    // 学校会话已失效时再进入统一认证。
+  }
   const result = await openCampusLoginWindow({
     sender,
     title: '登录广州理工学院教务系统',
@@ -236,7 +246,7 @@ async function fetchTimetable(semester: string) {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       'X-Requested-With': 'XMLHttpRequest',
-      Referer: `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkbIndex.html?gnmkdm=N253508`,
+      Referer: TIMETABLE_INDEX_URL,
     },
     body: body.toString(),
   });
@@ -285,30 +295,48 @@ async function fetchTimetableData(semester: string) {
     ];
   });
   if (lessons.length === 0) throw new Error('课表没有有效课程，原有课表不会被清除');
-  return { lessons, semesterStart: parseSemesterStart(data.rqazcList) };
+  let semesterStart = parseSemesterStart(data.rqazcList);
+  if (!semesterStart) {
+    const { xnm, xqm } = semesterParams(semester);
+    const calendar = z.array(z.object({ zs: z.string(), rq: z.string() })).parse(
+      JSON.parse(
+        await campusRequest(
+          await getCampusSession(),
+          `${CAMPUS_ORIGIN}/kbcx/xskbcxZccx_cxZcByXnxq.html?gnmkdm=N2154`,
+          {
+            service: '校历',
+            loginError: '登录已失效，请重新登录',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+              'X-Requested-With': 'XMLHttpRequest',
+              Referer: TIMETABLE_INDEX_URL,
+            },
+            body: new URLSearchParams({ xnm, xqm }).toString(),
+          },
+        ),
+      ),
+    );
+    semesterStart = parseSemesterStart(
+      calendar.filter((week) => week.zs === '1').map((week) => week.rq),
+    );
+  }
+  return {
+    lessons,
+    semesterStart,
+    unscheduledCourses: (data.sjkList ?? []).map((course) => ({
+      courseName: load(course.kcmc, undefined, false).text(),
+      weeksText: course.qsjsz,
+    })),
+  };
 }
 
 export async function syncTimetable(semester: string): Promise<TimetableResult> {
   try {
-    const { lessons, semesterStart } = await fetchTimetableData(semester);
-    const periodText = await campusRequest(
-      await getCampusSession(),
-      `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxRjc.html?gnmkdm=N253508`,
-      {
-        service: '节次时间',
-        loginError: '教务登录已失效，请重新登录',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'X-Requested-With': 'XMLHttpRequest',
-          Referer: `${CAMPUS_ORIGIN}/kbcx/xskbcx_cxXsgrkbIndex.html?gnmkdm=N253508`,
-        },
-        body: new URLSearchParams(semesterParams(semester)).toString(),
-      },
-    );
-    const periods = parsePeriodTimes(JSON.parse(periodText));
+    const { lessons, semesterStart, unscheduledCourses } = await fetchTimetableData(semester);
+    const periods = gzistPeriodTimes;
     if (lessons.some((lesson) => !periods[lesson.startPeriod] || !periods[lesson.endPeriod]))
-      throw new Error('学校返回的节次时间不完整，原有课表已保留');
+      throw new Error('课程节次超出本校作息表范围，原有课表已保留');
     await flushCampusSession();
 
     const db = getDatabase();
@@ -322,6 +350,10 @@ export async function syncTimetable(semester: string): Promise<TimetableResult> 
     );
     const syncedAt = new Date().toISOString();
     db.transaction(() => {
+      db.prepare('INSERT OR REPLACE INTO workspace_settings (key, value) VALUES (?, ?)').run(
+        `gzist-practicals:${semester}`,
+        JSON.stringify(unscheduledCourses),
+      );
       db.prepare('INSERT OR REPLACE INTO workspace_settings (key, value) VALUES (?, ?)').run(
         `gzist-periods:${semester}`,
         JSON.stringify(periods),
@@ -387,9 +419,12 @@ export function querySchedule(input: unknown) {
   }));
   const warnings = [...courses.warnings];
   if (!row?.last_synced_at) warnings.push('该学期课表尚未同步');
+  const unscheduledCourses = getTimetableState(semester).unscheduledCourses ?? [];
+  if (unscheduledCourses.length) warnings.push('实践课未安排具体日期与节次，请查看教务通知');
   return {
     semester,
     timezone: 'Asia/Shanghai',
+    unscheduledCourses,
     items: [...courses.items, ...events].sort((a, b) => a.startAt.localeCompare(b.startAt)),
     coverage: {
       courseSyncedAt: row?.last_synced_at || null,
@@ -457,10 +492,12 @@ export function getCalendarEvent(idInput: unknown): CalendarEvent | null {
 export function getTimetableState(requested?: unknown): TimetableState {
   const semester = resolveSemester(requested);
   const row = syncRow(semester);
+  const practicals = readSetting(`gzist-practicals:${semester}`);
   return {
     semester,
     lastSyncedAt: row?.last_synced_at || null,
     semesterStart: row?.semester_start ?? null,
+    unscheduledCourses: practicals ? JSON.parse(practicals) : [],
   };
 }
 

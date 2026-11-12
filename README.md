@@ -2,7 +2,7 @@
 
 面向广州理工学院的本地 AI 与教务工作台，基于 [Chang-Yo/Dela](https://github.com/Chang-Yo/Dela) 开发。
 
-**当前为待联调版本：代码已接入课表、成绩和考试查询，广州理工学院账号下的真实接口尚未完成验收。**
+**Windows 预览版：已用本机学校账号验证课表、成绩、考试同步与校历。作息采用本校社区验证记录，其他校区及 macOS 尚待验证。**
 
 项目仓库：[Yukk1o/dela-gzist](https://github.com/Yukk1o/dela-gzist)。这是独立项目，与学校没有隶属或授权关系。
 

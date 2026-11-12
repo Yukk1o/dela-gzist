@@ -81,6 +81,7 @@ export const queryScheduleTool = tool(
       semester: result.semester,
       timezone: result.timezone,
       items: result.items,
+      unscheduledCourses: result.unscheduledCourses,
       freshness: freshness('cached', result.coverage.courseSyncedAt ?? undefined),
       coverage: coverage(
         `cached_lessons_and_events:${result.semester}`,

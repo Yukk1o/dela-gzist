@@ -19,7 +19,7 @@ export function clearAcademicData(): void {
   const db = getDatabase();
   db.transaction(() => {
     db.prepare(
-      "DELETE FROM workspace_settings WHERE key LIKE 'gzist-grades:%' OR key LIKE 'gzist-exams:%' OR key LIKE 'gzist-periods:%'",
+      "DELETE FROM workspace_settings WHERE key LIKE 'gzist-grades:%' OR key LIKE 'gzist-exams:%' OR key LIKE 'gzist-periods:%' OR key LIKE 'gzist-practicals:%'",
     ).run();
     db.prepare('DELETE FROM timetable_lessons').run();
     db.prepare('DELETE FROM timetable_sync').run();
@@ -50,7 +50,7 @@ const examSchema = z.object({
 });
 const pageSchema = z.object({
   items: z.array(z.unknown()),
-  total: z.coerce.number().int().nonnegative(),
+  totalPage: z.coerce.number().int().nonnegative(),
 });
 
 export function academicSemesterParams(value: string): { xnm: string; xqm: string } {
@@ -150,7 +150,7 @@ export async function syncAcademics(
           body: body.toString(),
         }),
       );
-      pages = response.total;
+      pages = response.totalPage;
       if (pages > 100) throw new Error('教务查询页数异常，请到学校教务页面核对');
       if (page < pages && response.items.length === 0)
         throw new Error('教务分页结果不完整，请重试');

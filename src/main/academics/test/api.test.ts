@@ -20,7 +20,6 @@ import {
   readGrades,
   syncAcademics,
 } from '../api';
-import { parsePeriodTimes } from '../../timetable/periods';
 import { isAcademicPage } from '../../../shared/campus';
 
 let db: Database.Database;
@@ -72,8 +71,12 @@ describe('广州理工学院教务', () => {
 
   it('完整抓取分页后才更新缓存，异常时保留上次数据', async () => {
     vi.mocked(campusRequest)
-      .mockResolvedValueOnce(JSON.stringify({ total: '2', items: [{ kcmc: '课程 A', cj: '80' }] }))
-      .mockResolvedValueOnce(JSON.stringify({ total: 2, items: [{ kcmc: '课程 B', cj: '合格' }] }));
+      .mockResolvedValueOnce(
+        JSON.stringify({ totalPage: '2', items: [{ kcmc: '课程 A', cj: '80' }] }),
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({ totalPage: 2, items: [{ kcmc: '课程 B', cj: '合格' }] }),
+      );
     expect(await syncAcademics('grades', '2026-2027-1')).toEqual({ ok: true });
     const first = readGrades('2026-2027-1');
     expect(first.items.map((item) => item.courseName)).toEqual(['课程 A', '课程 B']);
@@ -84,7 +87,7 @@ describe('广州理工学院教务', () => {
       expect.objectContaining({ body: expect.stringContaining('queryModel.currentPage=2') }),
     );
     vi.mocked(campusRequest)
-      .mockResolvedValueOnce(JSON.stringify({ total: 2, items: [{ kcmc: '新数据' }] }))
+      .mockResolvedValueOnce(JSON.stringify({ totalPage: 2, items: [{ kcmc: '新数据' }] }))
       .mockRejectedValueOnce(new Error('网络失败'));
     expect(await syncAcademics('grades', '2026-2027-1')).toMatchObject({ ok: false });
     expect(readGrades('2026-2027-1')).toEqual(first);
@@ -92,7 +95,7 @@ describe('广州理工学院教务', () => {
 
   it('区分未同步、有效空结果与登录失效，登录页不能覆盖缓存', async () => {
     expect(readGrades('2026-2027-1').syncedAt).toBeNull();
-    vi.mocked(campusRequest).mockResolvedValueOnce('{"total":0,"items":[]}');
+    vi.mocked(campusRequest).mockResolvedValueOnce('{"totalPage":0,"items":[]}');
     expect(await syncAcademics('grades', '2026-2027-1')).toEqual({ ok: true });
     const snapshot = readGrades('2026-2027-1');
     expect(snapshot.syncedAt).not.toBeNull();
@@ -117,13 +120,5 @@ describe('广州理工学院教务', () => {
     expect(db.prepare('SELECT * FROM timetable_lessons').all()).toEqual([]);
     expect(db.prepare('SELECT * FROM timetable_sync').all()).toEqual([]);
     expect(db.prepare('SELECT * FROM calendar_events').all()).toHaveLength(1);
-  });
-
-  it('从学校响应读取节次时间，拒绝无效时间，不套用交大作息', () => {
-    expect(parsePeriodTimes([{ jcmc: '1', qssj: '08:20', jssj: '09:00' }])).toEqual({
-      1: [500, 540],
-    });
-    expect(() => parsePeriodTimes([{ jcmc: '1', qssj: '24:20', jssj: '09:00' }])).toThrow();
-    expect(() => parsePeriodTimes([])).toThrow();
   });
 });

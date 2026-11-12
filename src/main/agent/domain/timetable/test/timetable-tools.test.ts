@@ -34,6 +34,7 @@ describe('query_schedule', () => {
     schedule.mockReturnValue({
       semester: '2026-2027-1',
       timezone: 'Asia/Shanghai',
+      unscheduledCourses: [],
       items: [],
       coverage: { courseSyncedAt: '2026-09-20T00:00:00.000Z', complete: true, warnings: [] },
     });
@@ -60,6 +61,7 @@ describe('query_schedule', () => {
     schedule.mockReturnValue({
       semester: '2025-2026-2',
       timezone: 'Asia/Shanghai',
+      unscheduledCourses: [],
       items: [],
       coverage: {
         courseSyncedAt: null,

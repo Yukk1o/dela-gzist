@@ -23,6 +23,7 @@ export interface TimetableState {
   readonly semester: string;
   readonly lastSyncedAt: string | null;
   readonly semesterStart: string | null;
+  readonly unscheduledCourses?: readonly { courseName: string; weeksText: string }[];
 }
 
 // 日历事件候选色 key，与 renderer 的 --cal-* 设计 token 一一对应。

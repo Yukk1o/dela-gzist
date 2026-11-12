@@ -8,7 +8,7 @@ import {
   type Session,
   type WebContents,
 } from 'electron';
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { attachContextMenu } from './ipc';
@@ -65,8 +65,7 @@ export function getCampusSession(): Promise<Session> {
         if (saved.length === 0) rmSync(path, { force: true });
         else {
           if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统不支持校园会话加密');
-          writeFileSync(`${path}.tmp`, safeStorage.encryptString(JSON.stringify(saved)));
-          renameSync(`${path}.tmp`, path);
+          writeFileSync(path, safeStorage.encryptString(JSON.stringify(saved)));
         }
         persistenceError = undefined;
       } catch {

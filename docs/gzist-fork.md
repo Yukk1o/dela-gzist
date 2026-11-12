@@ -1,61 +1,35 @@
 # 广州理工学院版
 
-基于 [Chang-Yo/Dela](https://github.com/Chang-Yo/Dela) 开发面向广州理工学院学生的独立版本。第一版优先接入教务、成绩和考试安排，复用已有 Agent 工作台与日历能力。
+基于 [Chang-Yo/Dela](https://github.com/Chang-Yo/Dela) 开发的独立版本。第一版提供教务登录、课表、成绩、考试安排，以及 Agent 对本地缓存的只读查询。项目与学校没有隶属或授权关系。
 
-## 已确认的入口
+## 数据与登录
 
-- 统一身份认证：<https://ids.gzist.edu.cn/lyuapServer/login>，由用户提供，并与学校信息与网络中心官网链接一致。
-- 教务服务：<https://jw.gzist.edu.cn/>，由[学校信息与网络中心](https://nic.gzist.edu.cn/)提供，目前公开入口跳转到统一认证。
-- [课表查询指引](https://jwc.gzist.edu.cn/info/2040/3635.htm)说明通过统一门户登录查询课表。
+用户在本机学校页面完成[统一认证](https://ids.gzist.edu.cn/lyuapServer/login)，教务服务来自 [jw.gzist.edu.cn](https://jw.gzist.edu.cn/)。已有教务会话有效时直接复用。密码、Cookie 与认证票据不进入 Agent 上下文或仓库；Cookie 使用系统加密保存。退出登录或重新完成交互登录后清除教务缓存，保留个人日历。
 
-以上仅确认公开入口，尚未验证登录后的数据接口与响应结构。
+成绩、考试和课表缓存在本机数据库中，数据库本身未加密。让 Agent 查询记录时，结果会发送给用户配置的模型服务。同步失败保留上次成功结果，并显示同步时间。缺少的绩点、座位与时段不自行推算。
 
-## 第一版范围
+## 本机验证
 
-1. 在本机完成统一认证并进入教务系统，复用登录会话。
-2. 同步课表，复用已有课程日历和 Agent 课表查询能力。
-3. 按学年、学期查询系统公布的成绩，显示课程、成绩、学分及系统提供的其他字段。
-4. 查询系统公布的考试安排，显示课程、时间、地点及系统提供的其他字段。
-5. 为 Agent 提供成绩和考试的只读查询能力。
+2026-11-12 在 Windows 上使用用户本人于应用内完成的学校登录，验证了以下行为；仓库不保存个人记录或凭据：
 
-成绩字段、考试字段、学期编码、分页方式、校历与作息时间均以实际教务系统为准。空结果应与登录失效、接口异常区分，不使用模拟数据冒充已接入。
+- 当前学期课表、实践课、学校校历、考试安排，以及上一学期成绩均可真实同步。
+- 当前学期暂无成绩时保存有效空结果，区别于未同步和登录失效。
+- 学校分页使用 `totalPage`；脱敏回归用例覆盖跨页抓取与失败保留缓存。
+- 当前学期第一周从 2026-08-31 开始，由学校校历接口提供；没有具体日期、节次的实践课单独列出，不添加到日历时段。
+- 本机出现的文件重命名 `EXDEV` 已修正，会话快照可加密保存。重启后可继续使用教务会话。
 
-## 迁移原则
+课表入口及十二节作息参考[拾光课程表的本校适配](https://github.com/ShiGuangSchedule/shiguang_warehouse/blob/ccd43dd50fd01a3b87089d6e1b7b97fe93dff211/resources/GZIST/gzist_01.js)与[作者的学校会话验证](https://github.com/ShiGuangSchedule/shiguang_warehouse/pull/851)。该记录指出节次接口返回的行政作息与教学时间不同；前十节也与[广小课的本校作息](https://github.com/xfankang/guangxiaoke/blob/main/app/src/main/java/com/jianke/schedule/data/ClassTimes.kt)一致。作息尚未逐项对照学校当前页面，其他校区、其他账号与未来学期仍需验证；成绩和考试信息以学校网页为准。
 
-保留 Agent、项目、文件、会话、通用邮箱和本地日历能力。交大专属入口与内置校园工具需要逐项检查后停用或替换，不能仅替换域名。
+自动检查覆盖四个 TypeScript 配置、静态检查、1440 项常规测试，以及真实 Electron 下的成绩零分、考试座位、失败保留缓存和四种窗口宽度。界面测试使用明确标注的测试数据，另行完成学校账号同步。Windows 目录包通过 SQLite、渲染、预加载隔离、Agent 运行时与 Bash PTY 检查。上游后台任务套件仍有一项 Windows 子进程停止测试失败，相关实现未改动；全量测试尚未全绿。macOS 安装、签名与运行尚未验证。
 
-教务适配已替换原交大登录和请求流程，移除研究生回退，复用本地课表缓存和日历能力。
+## 分叉范围
 
-登录由用户在本机学校页面完成；密码、Cookie 和认证票据不进入 Agent 上下文、仓库或共享的调试材料。同步失败时保留上次成功结果并展示同步时间。
+保留 Agent、项目、文件、会话、终端、远程项目、通用邮箱、待办及个人日历。首次配置与主导航移除交大 Canvas、水源和课堂视频连接入口，原有模块源码仍保留，未移植为广州理工功能。公开通知列表来自[广州理工学院教务处](https://jwc.gzist.edu.cn/jwgl.htm)。
 
-## 接入前需要核验
-
-- 统一认证进入教务的完整跳转流程，以及是否要求校园网。
-- 登录后的课表、成绩、考试请求路径、方法、参数、分页和脱敏响应。
-- 登录失效时的跳转或响应，以及当前学期、校历和作息时间来源。
+教务模块位于 `src/main/academics/`，共享契约位于 `src/shared/academics.ts`，预加载接口位于 `src/preload/academics.ts`，成绩与考试界面位于 `src/renderer/features/timetable/AcademicRecords.tsx`；课表沿用 `src/main/timetable/`。
 
 ## 独立分发
 
-仓库：[Yukk1o/dela-gzist](https://github.com/Yukk1o/dela-gzist)，维护分支为 `gzist`。应用名为 Dela GZIST，安装包名为 Dela-GZIST，应用标识为 `io.dela.gzist.desktop`。应用数据独立保存在 `Dela-GZIST` 目录，默认工作目录为「文档/Dela-GZIST」，Skills 位于 `~/.dela-gzist/skills`。更新来源为本分叉的 GitHub Releases。保留原作者署名及 GPL-3.0-or-later 许可证。
+仓库：[Yukk1o/dela-gzist](https://github.com/Yukk1o/dela-gzist)，维护分支为 `gzist`。应用名为 Dela GZIST，安装包名为 Dela-GZIST，应用标识为 `io.dela.gzist.desktop`。应用数据位于独立的 `Dela-GZIST` 目录，默认工作目录为「文档/Dela-GZIST」，Skills 位于 `~/.dela-gzist/skills`，更新来自本分叉的 GitHub Releases。
 
-本版本与广州理工学院没有隶属或授权关系。
-
-## 实现状态
-
-新增教务模块位于 `src/main/academics/`，对应预加载接口为 `src/preload/academics.ts`，共享契约为 `src/shared/academics.ts`，成绩与考试界面为 `src/renderer/features/timetable/AcademicRecords.tsx`。
-
-课表、成绩、考试页面、本地缓存、同步时间及 Agent 只读查询已实现。同步失败保留上次缓存；重新完成登录或退出登录时清除教务缓存，保留个人日历。节次时间从教务系统读取，不使用交大作息；校历缺失时需补设学期起始日期。
-
-首次配置与主导航移除交大 Canvas、水源和课堂视频连接入口，保留通用 Agent、文件、项目、邮件、待办及个人日历。上游模块源码仍保留，尚未逐项移植为广州理工功能。
-
-学校公开登录页已确认是正方平台，路径为 `/jwglxt/`。请求与解析参考[正方协议](https://github.com/openschoolcn/zfn_api)和[课表及节次响应资料](https://github.com/zaochih/zf-to-ics/tree/main/ref)，独立编写实现。这些资料不代表广州理工学院的接口实测。
-
-**学校账号下的接口路径、功能菜单编号、分页、节次表尚未验证，当前为待联调版本。** 成绩与考试信息以学校网页为准。公开通知列表使用[广州理工学院教务处](https://jwc.gzist.edu.cn/jwgl.htm)。
-
-成绩、考试和课表缓存在本机数据库中，数据库本身未加密。让 Agent 查询记录时，查询结果会发送给用户配置的模型服务。教务 Cookie 使用系统加密保存。
-
-## 验收
-
-使用本人账号在本机登录，逐项对照教务网页中的课表、成绩、考试安排；覆盖跨学期查询、无数据、登录过期和网络失败。课表日期与节次需对照学校校历及作息验证。真实接入验收通过前，不标记为已完成。
-
-本机验证：四个进程与脚本配置的类型检查、静态检查、1437 项常规测试、6 项命令桥及通知测试通过；真实 Electron 界面检查覆盖成绩零分、考试座位、失败保留缓存和四种窗口宽度，使用的均为明确标注的测试数据。Windows 目录包通过 SQLite、渲染、预加载隔离、Agent 运行时与 Bash PTY 检查。原有后台任务套件有一项 Windows 子进程停止测试失败，相关实现未改动，因此全量测试尚未全绿。macOS 安装、签名与运行尚未验证。
+当前交付 Windows 预览安装包，未发布稳定版。保留原作者署名及 GPL-3.0-or-later 许可证。

@@ -408,6 +408,19 @@ function DesktopTimetableView({ onOpenTodo }: { onOpenTodo?: (todoId: string) =>
         </div>
       </header>
 
+      {state.unscheduledCourses?.length ? (
+        <details className="mx-4 mt-3 rounded-card bg-hover px-3 py-2 text-xs text-ink-2">
+          <summary className="cursor-pointer">实践课（未安排具体日期与节次）</summary>
+          <ul className="mt-2 space-y-1">
+            {state.unscheduledCourses.map((course, index) => (
+              <li key={index}>
+                {course.courseName} · {course.weeksText}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
       {error ? (
         <p
           className="mx-4 mt-3 break-words rounded-card border border-line border-destructive/30 bg-red-tint px-3 py-2 text-xs text-red"
