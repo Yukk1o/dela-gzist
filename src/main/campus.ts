@@ -103,10 +103,14 @@ export interface CampusRequestOptions {
   method?: 'GET' | 'POST';
   headers?: Record<string, string>;
   body?: string;
+  /** 只读查询失效时，用已有统一认证会话重新进入服务。提交操作不设置。 */
+  ssoUrl?: string;
 }
 
 /** 登录失效错误：调用方据此引导重新登录，而非当作普通失败。 */
 export class CampusAuthError extends Error {}
+
+const sessionRenewals = new Map<string, Promise<void>>();
 
 /**
  * 直接消费 Chromium 响应：Electron session.fetch 在内部构造 Response 时可能抛出未捕获的
@@ -118,7 +122,7 @@ export function campusRequest(
   url: string,
   options: CampusRequestOptions,
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
+  const response = new Promise<string>((resolve, reject) => {
     const request = net.request({
       url,
       method: options.method ?? 'GET',
@@ -170,14 +174,44 @@ export function campusRequest(
       response.on('aborted', interrupted);
       response.on('end', () => {
         if (settled) return;
+        const text = Buffer.concat(chunks).toString('utf8');
+        if (
+          /^\s*(?:<!doctype|<html)/i.test(text) &&
+          /<title[^>]*>[^<]*统一身份认证|<form[^>]*action=["'][^"']*login_slogin|<input[^>]*name=["']?(?:yhm|mm)\b/i.test(
+            text,
+          )
+        ) {
+          fail(new CampusAuthError(options.loginError));
+          return;
+        }
         settled = true;
         clearTimeout(timer);
-        resolve(Buffer.concat(chunks).toString('utf8'));
+        resolve(text);
       });
     });
     for (const [name, value] of Object.entries(options.headers ?? {}))
       request.setHeader(name, value);
     request.end(options.body);
+  });
+  if (!options.ssoUrl) return response;
+  const { ssoUrl, ...requestOptions } = options;
+  return response.catch(async (error: unknown) => {
+    if (!(error instanceof CampusAuthError)) throw error;
+    let renewal = sessionRenewals.get(ssoUrl);
+    if (!renewal) {
+      renewal = hiddenCampusLogin(
+        ssoUrl,
+        async () => {
+          await campusRequest(campus, url, requestOptions);
+        },
+        options.loginError,
+      )
+        .then(() => flushCampusSession())
+        .finally(() => sessionRenewals.delete(ssoUrl));
+      sessionRenewals.set(ssoUrl, renewal);
+    }
+    await renewal;
+    return campusRequest(campus, url, requestOptions);
   });
 }
 
@@ -313,7 +347,11 @@ const HIDDEN_LOGIN_PROBES = 30;
  * 不弹窗地在校园分区加载一次性登录地址，每秒探测一次，探测通过即完成。
  * 目标站点可能在页面脚本的首个接口请求里才下发会话，因此不以导航到达为准。
  */
-export async function hiddenCampusLogin(url: string, probe: () => Promise<void>): Promise<void> {
+export async function hiddenCampusLogin(
+  url: string,
+  probe: () => Promise<void>,
+  loginError?: string,
+): Promise<void> {
   await getCampusSession();
   const window = new BrowserWindow({
     show: false,
@@ -327,6 +365,16 @@ export async function hiddenCampusLogin(url: string, probe: () => Promise<void>)
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   try {
     let failure: unknown;
+    if (loginError) {
+      window.webContents.on('did-finish-load', () => {
+        const destination = new URL(window.webContents.getURL());
+        if (
+          destination.origin === 'https://ids.gzist.edu.cn' &&
+          destination.pathname === '/lyuapServer/login'
+        )
+          failure = new CampusAuthError(loginError);
+      });
+    }
     window.loadURL(url).catch((error: unknown) => (failure = error));
     for (let attempt = 1; ; attempt++) {
       await delay(1000);
@@ -335,7 +383,10 @@ export async function hiddenCampusLogin(url: string, probe: () => Promise<void>)
         await probe();
         return;
       } catch (error) {
-        if (attempt >= HIDDEN_LOGIN_PROBES) throw new Error('登录超时', { cause: error });
+        if (attempt >= HIDDEN_LOGIN_PROBES) {
+          if (loginError && error instanceof CampusAuthError) throw new CampusAuthError(loginError);
+          throw new Error('登录超时', { cause: error });
+        }
       }
     }
   } finally {

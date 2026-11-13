@@ -40,6 +40,8 @@ it('在时段和位置均有效时只提交一次，并以学校回读状态确�
   await second;
   expect(mock.mock.calls.filter((call) => call[1].includes('/uniFormSignUp.do'))).toHaveLength(1);
   expect(mock.mock.calls[1]![2]).toMatchObject({ method: 'POST', body: 'data=%7B%7D' });
+  expect(mock.mock.calls[0]![2]).toHaveProperty('ssoUrl');
+  expect(mock.mock.calls[1]![2]).not.toHaveProperty('ssoUrl');
 });
 
 it('已签到时跳过提交，也不获取位置', async () => {

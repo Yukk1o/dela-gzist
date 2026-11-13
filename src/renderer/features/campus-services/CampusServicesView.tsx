@@ -191,7 +191,13 @@ function Attendance() {
         <Button
           disabled={!api || busy}
           variant="outline"
-          onClick={() => void run(() => api!.open('attendance'))}
+          onClick={() =>
+            void run(async () => {
+              await api!.open('attendance');
+              setStatus(await api!.attendanceStatus());
+              setRecords(await api!.attendance(yearValue!, monthValue!));
+            })
+          }
         >
           <LogIn className="size-4" />
           学校登录

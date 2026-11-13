@@ -141,6 +141,7 @@ export async function syncAcademics(
         await campusRequest(await getCampusSession(), `${campus.academicBase}${path}`, {
           service,
           loginError: '教务登录已失效，请重新登录',
+          ssoUrl: campus.loginUrl,
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',

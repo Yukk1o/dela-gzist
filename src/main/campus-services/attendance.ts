@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { campusRequest, getCampusSession } from '../campus';
+import { campus } from '../../shared/campus';
 import type {
   AttendanceRecords,
   AttendanceStatus,
@@ -12,6 +13,7 @@ async function attendancePost(action: string): Promise<unknown> {
   const text = await campusRequest(await getCampusSession(), `${controller}${action}.do`, {
     service: '查寝',
     loginError: '学校登录已失效，请点击学校登录重新认证',
+    ...(action === 'queryStudentClassInfo' ? { ssoUrl: campus.attendanceUrl } : {}),
     method: 'POST',
     headers: {
       'X-Requested-With': 'XMLHttpRequest',
@@ -135,6 +137,7 @@ export async function readAttendance(
     {
       service: '查寝记录',
       loginError: '请先打开查寝页面完成学校认证',
+      ssoUrl: campus.attendanceUrl,
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     },
   );

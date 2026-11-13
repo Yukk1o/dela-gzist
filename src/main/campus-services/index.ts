@@ -1,8 +1,15 @@
 import { BrowserWindow, clipboard, ipcMain, shell, type WebContents } from 'electron';
 import { z } from 'zod';
-import { CAMPUS_PARTITION, getCampusSession } from '../campus';
+import {
+  CAMPUS_PARTITION,
+  CampusAuthError,
+  campusRequest,
+  flushCampusSession,
+  getCampusSession,
+  openCampusLoginWindow,
+} from '../campus';
 import { attachContextMenu, checkWorkspaceSender } from '../ipc';
-import { campus } from '../../shared/campus';
+import { campus, isAcademicPage } from '../../shared/campus';
 import type { CampusService } from '../../shared/campus-services';
 import { readAttendance, readAttendanceStatus, signAttendance } from './attendance';
 import {
@@ -23,13 +30,21 @@ const windows = new Map<CampusService, BrowserWindow>();
 const services = {
   attendance: {
     title: '广州理工学院 · 查寝与考勤',
-    url: 'https://xsfw.gzist.edu.cn/xsfw/sys/swmzncqapp/*default/index.do#/xscq/grcq',
+    url: campus.attendanceUrl,
   },
   enrollment: {
     title: '广州理工学院 · 选课',
     url: `${campus.academicBase}/xsxk/zzxkyzb_cxZzxkYzbIndex.html?gnmkdm=N253512&layout=default`,
   },
 } as const;
+
+async function ensureAcademicSession(): Promise<void> {
+  await campusRequest(await getCampusSession(), `${campus.academicBase}/xtgl/index_initMenu.html`, {
+    service: '教务',
+    loginError: '学校统一认证已失效，请点击学校选课页面重新认证',
+    ssoUrl: campus.loginUrl,
+  });
+}
 
 async function openService(
   sender: WebContents | undefined,
@@ -83,7 +98,34 @@ async function devicePosition() {
 export function registerCampusServicesIpc(): void {
   ipcMain.handle('campus-services:open', async (event, service: unknown) => {
     checkWorkspaceSender(event);
-    await openService(event.sender, z.enum(['attendance', 'enrollment']).parse(service));
+    const target = z.enum(['attendance', 'enrollment']).parse(service);
+    const options = {
+      sender: event.sender,
+      title: '广州理工学院 · 统一认证',
+      url: target === 'attendance' ? campus.attendanceUrl : campus.loginUrl,
+      reached: (value: string) =>
+        target === 'attendance'
+          ? new URL(value).origin === 'https://xsfw.gzist.edu.cn'
+          : isAcademicPage(value),
+      retryProbe: true,
+      probe: async () => {
+        if (target === 'attendance') await readAttendanceStatus();
+        else await ensureAcademicSession();
+        await flushCampusSession();
+      },
+    };
+    try {
+      await options.probe();
+    } catch (error) {
+      if (!(error instanceof CampusAuthError)) throw error;
+      const result = await openCampusLoginWindow(options);
+      if (!result.ok) throw new Error(result.error);
+    }
+    if (target === 'enrollment') {
+      const window = await openService(event.sender, target);
+      if (!isAcademicPage(window.webContents.getURL()))
+        await window.loadURL(services.enrollment.url);
+    }
   });
   ipcMain.handle('campus-services:attendance', (event, year: unknown, month: unknown) => {
     checkWorkspaceSender(event);
@@ -125,7 +167,12 @@ export function registerCampusServicesIpc(): void {
   });
   ipcMain.handle('campus-services:enrollment', async (event) => {
     checkWorkspaceSender(event);
-    return readEnrollment(await openService(event.sender, 'enrollment', false));
+    const window = await openService(event.sender, 'enrollment', false);
+    if (!isAcademicPage(window.webContents.getURL())) {
+      await ensureAcademicSession();
+      await window.loadURL(services.enrollment.url);
+    }
+    return readEnrollment(window);
   });
   ipcMain.handle('campus-services:schedule-enrollment', (event, ids: unknown, runAt: unknown) => {
     checkWorkspaceSender(event);

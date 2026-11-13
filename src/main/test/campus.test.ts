@@ -34,7 +34,12 @@ vi.mock('electron', () => {
   };
   class MockWindow {
     private readonly emitter = createEmitter();
-    readonly webContents = createEmitter();
+    url = '';
+    readonly webContents = {
+      ...createEmitter(),
+      setWindowOpenHandler: vi.fn(),
+      getURL: () => this.url,
+    };
     closeCalled = false;
     minimized = false;
     focus = vi.fn();
@@ -52,7 +57,8 @@ vi.mock('electron', () => {
     emit(event: string, ...args: unknown[]): void {
       this.emitter.emit(event, ...args);
     }
-    async loadURL(): Promise<void> {
+    async loadURL(url?: string): Promise<void> {
+      if (url) this.url = url;
       await mock.load();
     }
     isDestroyed(): boolean {
@@ -66,6 +72,9 @@ vi.mock('electron', () => {
       this.closeCalled = true;
       this.emit('closed');
     }
+    destroy(): void {
+      this.close();
+    }
   }
   return {
     BrowserWindow: Object.assign(MockWindow, { fromWebContents: () => mock.parent }),
@@ -74,12 +83,16 @@ vi.mock('electron', () => {
     safeStorage: { isEncryptionAvailable: () => true },
     session: {
       fromPartition: () => ({
-        cookies: { get: async () => [], on: () => {} },
+        cookies: { get: async () => [], on: () => {}, flushStore: async () => {} },
+        flushStorageData: () => {},
       }),
     },
   };
 });
 vi.mock('../ipc', () => ({ attachContextMenu: () => {} }));
+vi.mock('node:timers/promises', () => ({
+  setTimeout: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+}));
 
 import {
   CampusAuthError,
@@ -89,6 +102,7 @@ import {
 } from '../campus';
 
 interface LoginWindowMock {
+  url: string;
   webContents: { emit: (event: string, ...args: unknown[]) => void };
   loadURL: () => Promise<void>;
   close: () => void;
@@ -344,28 +358,36 @@ describe('campusRequest', () => {
   const url = 'https://i.sjtu.edu.cn/kbcx/xskbcx_cxXsgrkb.html';
   const options = { service: '课表', loginError: '登录已失效，请重新登录' };
 
-  function mockRequest(status: number | 'redirect' | 'error', body = '') {
-    const request = Object.assign(new EventEmitter(), {
-      setHeader: vi.fn(),
-      abort: vi.fn(),
-      end: vi.fn(() =>
-        queueMicrotask(() => {
-          if (status === 'redirect') {
-            request.emit('redirect', 302);
-            return;
-          }
-          if (status === 'error') {
-            request.emit('error', new Error('network failed'));
-            return;
-          }
-          const response = Object.assign(new EventEmitter(), { statusCode: status });
-          request.emit('response', response);
-          response.emit('data', Buffer.from(body));
-          response.emit('end');
-        }),
-      ),
-    });
-    mock.netRequest.mockReturnValue(request);
+  function mockRequest(
+    status: number | 'redirect' | 'error' | (() => number | 'redirect' | 'error'),
+    body = '',
+  ) {
+    const createRequest = () => {
+      const request = Object.assign(new EventEmitter(), {
+        setHeader: vi.fn(),
+        abort: vi.fn(),
+        end: vi.fn(() =>
+          queueMicrotask(() => {
+            const replyStatus = typeof status === 'function' ? status() : status;
+            if (replyStatus === 'redirect') {
+              request.emit('redirect', 302);
+              return;
+            }
+            if (replyStatus === 'error') {
+              request.emit('error', new Error('network failed'));
+              return;
+            }
+            const response = Object.assign(new EventEmitter(), { statusCode: replyStatus });
+            request.emit('response', response);
+            response.emit('data', Buffer.from(body));
+            response.emit('end');
+          }),
+        ),
+      });
+      return request;
+    };
+    const request = createRequest();
+    mock.netRequest.mockImplementationOnce(() => request).mockImplementation(createRequest);
     return request;
   }
 
@@ -387,6 +409,92 @@ describe('campusRequest', () => {
     expect(caught).toBeInstanceOf(CampusAuthError);
     expect((caught as Error).message).toBe('登录已失效，请重新登录');
     expect(request.abort).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    '<!DOCTYPE html><html><title>统一身份认证平台</title></html>',
+    '<html><form action="/jwglxt/xtgl/login_slogin.html"></form></html>',
+  ])('200 登录网页也识别为认证失效：%s', async (body) => {
+    mockRequest(200, body);
+    await expect(campusRequest({} as Session, url, options)).rejects.toBeInstanceOf(
+      CampusAuthError,
+    );
+  });
+
+  it('已登录业务网页引用登录脚本时仍可正常读取', async () => {
+    const body = '<html><script>const logout = "login_slogin.html";</script></html>';
+    mockRequest(200, body);
+    await expect(campusRequest({} as Session, url, options)).resolves.toBe(body);
+  });
+
+  it('并发只读查询共用后台 SSO，复用统一认证后重新读取', async () => {
+    vi.useFakeTimers();
+    let authorized = false;
+    mockRequest(() => (authorized ? 200 : 'redirect'), '{"kbList":[]}');
+    mock.load.mockImplementation(async () => {
+      authorized = true;
+    });
+    const ssoOptions = { ...options, ssoUrl: 'https://jw.gzist.edu.cn/sso/lyiotlogin' };
+    const first = campusRequest({} as Session, url, ssoOptions);
+    const second = campusRequest({} as Session, url, ssoOptions);
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(Promise.all([first, second])).resolves.toEqual(['{"kbList":[]}', '{"kbList":[]}']);
+    expect(mock.windows).toHaveLength(1);
+    expect(asWindow().options.show).toBe(false);
+    expect(asWindow().closeCalled).toBe(true);
+  });
+
+  it('统一认证已过期时停止后台登录，下次完成认证后可以再次复用', async () => {
+    vi.useFakeTimers();
+    let authorized = false;
+    mockRequest(() => (authorized ? 200 : 'redirect'), '{}');
+    mock.load.mockImplementation(async () => {
+      asWindow().url = 'https://ids.gzist.edu.cn/lyuapServer/login';
+      asWindow().webContents.emit('did-finish-load');
+    });
+    const ssoOptions = { ...options, ssoUrl: 'https://jw.gzist.edu.cn/sso/lyiotlogin' };
+    const pending = expect(campusRequest({} as Session, url, ssoOptions)).rejects.toBeInstanceOf(
+      CampusAuthError,
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    await pending;
+    expect(asWindow().closeCalled).toBe(true);
+    mock.load.mockImplementation(async () => {
+      authorized = true;
+    });
+    const next = campusRequest({} as Session, url, ssoOptions);
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(next).resolves.toBe('{}');
+    expect(mock.windows).toHaveLength(2);
+  });
+
+  it('业务提交和普通网络故障不触发后台 SSO 或自动重发', async () => {
+    mockRequest('redirect');
+    await expect(
+      campusRequest({} as Session, url, { ...options, method: 'POST', body: 'submit=1' }),
+    ).rejects.toBeInstanceOf(CampusAuthError);
+    mockRequest('error');
+    await expect(
+      campusRequest({} as Session, url, {
+        ...options,
+        ssoUrl: 'https://jw.gzist.edu.cn/sso/lyiotlogin',
+      }),
+    ).rejects.toThrow('无法连接');
+    expect(mock.windows).toHaveLength(0);
+  });
+
+  it('后台认证未完成时保留认证错误，允许用户转入交互登录', async () => {
+    vi.useFakeTimers();
+    mockRequest('redirect');
+    const pending = expect(
+      campusRequest({} as Session, url, {
+        ...options,
+        ssoUrl: 'https://jw.gzist.edu.cn/sso/lyiotlogin',
+      }),
+    ).rejects.toBeInstanceOf(CampusAuthError);
+    await vi.advanceTimersByTimeAsync(30000);
+    await pending;
+    expect(asWindow().closeCalled).toBe(true);
   });
 
   it('网络错误按可重试失败收场', async () => {

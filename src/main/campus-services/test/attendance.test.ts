@@ -31,6 +31,7 @@ it('按学校 data 参数编码读取本人月份记录，不向界面传递学�
   const url = new URL(vi.mocked(campusRequest).mock.calls[0]![1]);
   expect(JSON.parse(decodeURI(url.searchParams.get('data')!))).toEqual({ YEAR: 2026, MONTH: 11 });
   expect(JSON.stringify(result)).not.toContain('private-fixture');
+  expect(vi.mocked(campusRequest).mock.calls[0]![2]).toHaveProperty('ssoUrl');
 });
 
 it('学校拒绝查询时不把空数据当作成功', async () => {

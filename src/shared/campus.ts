@@ -6,6 +6,7 @@ export const campus = {
   academicOrigin: 'https://jw.gzist.edu.cn',
   academicBase: 'https://jw.gzist.edu.cn/jwglxt',
   loginUrl: 'https://jw.gzist.edu.cn/sso/lyiotlogin',
+  attendanceUrl: 'https://xsfw.gzist.edu.cn/xsfw/sys/swmzncqapp/*default/index.do#/xscq/grcq',
   cookieDomain: 'gzist.edu.cn',
 } as const;
 
