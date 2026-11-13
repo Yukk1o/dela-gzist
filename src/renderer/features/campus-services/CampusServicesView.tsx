@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react';
+import { LogIn, RefreshCw } from 'lucide-react';
+import { SettingRow } from '../settings/SettingRow';
+import { SettingsGroup } from '../settings/SettingsGroup';
+import { Switch } from '../../components/ui/beautifului/atoms/Switch';
 import type {
   AttendanceRecords,
   AttendanceStatus,
@@ -16,28 +20,26 @@ export function CampusServicesView({ community = false }: { community?: boolean 
   if (community) return <Community />;
   return (
     <section className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b border-line px-4">
-        <h1 className="sr-only">校园服务</h1>
-        <nav aria-label="校园服务" className="mx-auto flex max-w-4xl gap-5">
-          {(
-            [
-              ['attendance', '查寝'],
-              ['enrollment', '自动选课'],
-              ['network', '校园网'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              className={`min-h-11 border-b-2 py-2 text-13 focus-visible:outline-2 focus-visible:outline-ring ${tab === id ? 'border-ink font-medium text-ink' : 'border-transparent text-ink-3 hover:text-ink'}`}
-              aria-current={tab === id ? 'page' : undefined}
-              onClick={() => setTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <nav className="flex flex-wrap gap-2 px-4 py-2" aria-label="校园服务">
+        {(
+          [
+            ['attendance', '查寝'],
+            ['enrollment', '自动选课'],
+            ['network', '校园网'],
+          ] as const
+        ).map(([id, label]) => (
+          <Button
+            key={id}
+            size="sm"
+            variant={tab === id ? 'secondary' : 'ghost'}
+            aria-current={tab === id ? 'page' : undefined}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </Button>
+        ))}
+      </nav>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
         {tab === 'attendance' ? (
           <Attendance />
         ) : tab === 'enrollment' ? (
@@ -159,14 +161,39 @@ function Attendance() {
   const positionLabel = position
     ? `${position.longitude.toFixed(6)}, ${position.latitude.toFixed(6)}（百度坐标）`
     : '签到时获取设备位置';
+  const positionInputChanged =
+    longitude !== '' &&
+    latitude !== '' &&
+    (!position ||
+      Number(longitude) !== position.longitude ||
+      Number(latitude) !== position.latitude);
+  const planDirty =
+    !!plan &&
+    (enabled !== plan.enabled ||
+      time !== plan.time ||
+      position?.longitude !== plan.position?.longitude ||
+      position?.latitude !== plan.position?.latitude);
   return (
-    <div className="mx-auto grid max-w-4xl gap-4">
-      <header className="flex flex-wrap items-center justify-end gap-2">
+    <div className="grid min-w-0 gap-4">
+      <header className="flex flex-wrap items-center gap-3">
+        <div className="mr-auto grid gap-1">
+          <h1 className="text-lg font-semibold">查寝</h1>
+          <p className="text-xs text-ink-3">
+            {status
+              ? status.signed
+                ? '今日已签到'
+                : !status.required
+                  ? '今日无需签到'
+                  : `${status.startTime}–${status.endTime} · ${status.inTime ? '可签到' : '未到签到时段'}`
+              : '正在读取状态'}
+          </p>
+        </div>
         <Button
           disabled={!api || busy}
-          variant="ghost"
+          variant="outline"
           onClick={() => void run(() => api!.open('attendance'))}
         >
+          <LogIn className="size-4" />
           学校登录
         </Button>
         <Button
@@ -179,244 +206,247 @@ function Attendance() {
             })
           }
         >
-          刷新状态
+          <RefreshCw className="size-4" />
+          {busy ? '处理中…' : '刷新状态'}
         </Button>
+        {confirm === 'sign' ? (
+          <>
+            <span className="break-words text-13">确认提交本次签到？位置：{positionLabel}</span>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const result = await api!.signAttendance(position);
+                  setMessage(result.message);
+                  setConfirm(null);
+                  setStatus(await api!.attendanceStatus());
+                  setRecords(await api!.attendance(yearValue!, monthValue!));
+                })
+              }
+            >
+              确认签到
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirm(null)}>
+              取消
+            </Button>
+          </>
+        ) : status?.signed ? null : (
+          <Button
+            disabled={
+              !api ||
+              busy ||
+              !status ||
+              status.signed ||
+              !status.required ||
+              !status.inTime ||
+              status.mode !== 'location'
+            }
+            onClick={() => setConfirm('sign')}
+          >
+            立即签到
+          </Button>
+        )}
       </header>
       {error && (
         <p role="alert" className="break-words text-13 text-red">
           {error}
         </p>
       )}
-      <section className="grid gap-2">
-        <h2 className="text-sm font-medium">
-          {status?.signed ? '今日已签到' : status && !status.required ? '今日无需签到' : '今日签到'}
-        </h2>
-        <p className="text-13 text-ink-2">
-          {status
-            ? `学校时段 ${status.startTime}–${status.endTime} · ${status.inTime ? '当前可登记' : '当前不在登记时段'}`
-            : '正在读取学校状态'}
-        </p>
-        <p className="break-words text-xs text-ink-3">当前位置：{positionLabel}</p>
-        <div className="flex flex-wrap items-center gap-3">
-          {confirm === 'sign' ? (
-            <>
-              <span className="text-13">确认使用上述位置提交本次签到？</span>
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    const result = await api!.signAttendance(position);
-                    setMessage(result.message);
-                    setConfirm(null);
-                    setStatus(await api!.attendanceStatus());
-                    setRecords(await api!.attendance(yearValue!, monthValue!));
-                  })
-                }
-              >
-                确认签到
-              </Button>
-              <Button variant="ghost" onClick={() => setConfirm(null)}>
-                取消
-              </Button>
-            </>
-          ) : status?.signed ? null : (
-            <Button
-              disabled={
-                !api ||
-                busy ||
-                !status ||
-                status.signed ||
-                !status.required ||
-                !status.inTime ||
-                status.mode !== 'location'
-              }
-              onClick={() => setConfirm('sign')}
-            >
-              立即签到
-            </Button>
+      {(status?.mode === 'qr' || message) && (
+        <section className="grid gap-2">
+          {status?.mode === 'qr' && (
+            <p className="text-xs text-ink-3">学校当前要求扫码，请进入学校页面完成。</p>
           )}
-        </div>
-        {status?.mode === 'qr' && (
-          <p className="text-xs text-ink-3">学校当前要求扫码，请进入学校页面完成。</p>
-        )}
-        {message && (
-          <p role="status" className="text-13 text-ink-2">
-            {message}
-          </p>
-        )}
-      </section>
-      <details data-campus-settings className="border-y border-line py-3">
-        <summary className="cursor-pointer text-13 text-ink-2">
-          位置与自动签到
+          {message && (
+            <p role="status" className="text-13 text-ink-2">
+              {message}
+            </p>
+          )}
+        </section>
+      )}
+      <details data-campus-settings className="group">
+        <summary className="cursor-pointer py-2 text-13 text-ink-2">
+          签到设置
           <span className="ml-3 text-xs text-ink-3">
-            {plan?.enabled ? `每天 ${plan.time}` : '自动签到未启用'}
+            {plan?.enabled ? `每天 ${plan.time}` : '自动签到关闭'}
           </span>
         </summary>
-        <div className="mt-4 grid items-start gap-5 lg:grid-cols-2">
-          <section className="grid min-w-0 gap-3">
-            <h2 className="flex items-center gap-2 text-sm font-medium">签到位置</h2>
-            <p className="text-xs text-ink-3">可使用设备定位，或选择你当前所在的学校登记地点。</p>
-            <select
-              aria-label="学校登记地点"
-              className="h-10 w-full min-w-0 rounded-md border border-line bg-surface px-3 text-13 text-ink focus-visible:outline-2 focus-visible:outline-ring"
-              defaultValue=""
-              onChange={(event) => {
-                const location = status?.locations[Number(event.target.value)];
-                if (event.target.value === '' || !location) return;
-                setLongitude(String(location.longitude));
-                setLatitude(String(location.latitude));
-                setConfirm(null);
-              }}
+        <div className="mt-2 grid gap-3">
+          <SettingsGroup>
+            <SettingRow
+              settingId="campus-sign-position"
+              title="签到位置"
+              description={positionLabel}
             >
-              <option value="">选择当前位置</option>
-              {status?.locations.map((location, index) => (
-                <option value={index} key={index}>
-                  {location.name}
-                </option>
-              ))}
-            </select>
-            <details className="text-xs text-ink-3">
-              <summary className="cursor-pointer py-2 hover:text-ink">手动输入百度坐标</summary>
-              <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                <label className="grid min-w-0 gap-1 text-xs text-ink-3">
-                  经度（百度坐标）
-                  <Input
-                    type="number"
-                    step="any"
-                    value={longitude}
-                    onChange={(e) => {
-                      setLongitude(e.target.value);
+              <div className="grid w-48 max-w-full gap-2">
+                <select
+                  aria-label="学校登记地点"
+                  className="h-8 w-full min-w-0 rounded-control border border-line bg-surface px-2 text-13 text-ink focus-visible:outline-2 focus-visible:outline-ring"
+                  defaultValue=""
+                  disabled={busy}
+                  onChange={(event) => {
+                    const location = status?.locations[Number(event.target.value)];
+                    if (event.target.value === '' || !location) return;
+                    setLongitude(String(location.longitude));
+                    setLatitude(String(location.latitude));
+                    setConfirm(null);
+                  }}
+                >
+                  <option value="">选择当前位置</option>
+                  {status?.locations.map((location, index) => (
+                    <option key={index} value={index}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+                <details className="text-xs text-ink-3">
+                  <summary className="cursor-pointer py-1">手动输入百度坐标</summary>
+                  <div className="mt-2 grid gap-2">
+                    <Input
+                      aria-label="经度（百度坐标）"
+                      type="number"
+                      step="any"
+                      value={longitude}
+                      disabled={busy}
+                      placeholder="经度"
+                      onChange={(e) => {
+                        setLongitude(e.target.value);
+                        setConfirm(null);
+                      }}
+                    />
+                    <Input
+                      aria-label="纬度（百度坐标）"
+                      type="number"
+                      step="any"
+                      value={latitude}
+                      disabled={busy}
+                      placeholder="纬度"
+                      onChange={(e) => {
+                        setLatitude(e.target.value);
+                        setConfirm(null);
+                      }}
+                    />
+                  </div>
+                </details>
+                <div className="flex flex-wrap justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={busy || !positionInputChanged}
+                    onClick={() => {
+                      const selected = { longitude: Number(longitude), latitude: Number(latitude) };
+                      if (
+                        !Number.isFinite(selected.longitude) ||
+                        !Number.isFinite(selected.latitude) ||
+                        Math.abs(selected.longitude) > 180 ||
+                        Math.abs(selected.latitude) > 90
+                      ) {
+                        setError('请输入有效的百度经纬度');
+                        return;
+                      }
+                      setPosition(selected);
+                      setConfirm(null);
+                      setMessage('当前位置已更新；自动计划需保存后生效');
+                    }}
+                  >
+                    使用此位置
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy || !position}
+                    onClick={() => {
+                      setPosition(null);
+                      setLongitude('');
+                      setLatitude('');
                       setConfirm(null);
                     }}
-                  />
-                </label>
-                <label className="grid min-w-0 gap-1 text-xs text-ink-3">
-                  纬度（百度坐标）
-                  <Input
-                    type="number"
-                    step="any"
-                    value={latitude}
-                    onChange={(e) => {
-                      setLatitude(e.target.value);
-                      setConfirm(null);
-                    }}
-                  />
-                </label>
+                  >
+                    使用设备定位
+                  </Button>
+                </div>
+                {positionInputChanged && (
+                  <p className="text-right text-xs text-ink-3">位置尚未应用</p>
+                )}
               </div>
-            </details>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                disabled={busy || !longitude || !latitude}
-                variant="outline"
-                onClick={() => {
-                  const selected = { longitude: Number(longitude), latitude: Number(latitude) };
-                  if (
-                    !Number.isFinite(selected.longitude) ||
-                    !Number.isFinite(selected.latitude) ||
-                    Math.abs(selected.longitude) > 180 ||
-                    Math.abs(selected.latitude) > 90
-                  ) {
-                    setError('请输入有效的百度经纬度');
-                    return;
-                  }
-                  setPosition(selected);
-                  setConfirm(null);
-                  setMessage('当前位置已更新；自动签到的位置需点击保存计划更新');
-                }}
-              >
-                使用此位置
-              </Button>
-              <Button
-                disabled={busy || !position}
-                variant="ghost"
-                onClick={() => {
-                  setPosition(null);
+            </SettingRow>
+            <SettingRow
+              settingId="campus-sign-enabled"
+              title="每日自动签到"
+              description="到点尝试一次，请保持 Dela 运行。错过时不补交。"
+            >
+              <Switch
+                label="启用自动签到"
+                checked={enabled}
+                disabled={!api || busy || !plan}
+                onChange={(value) => {
+                  setEnabled(value);
                   setConfirm(null);
                 }}
-              >
-                使用设备定位
-              </Button>
-            </div>
-          </section>
-          <section className="grid min-w-0 gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="mr-auto flex items-center gap-2 text-sm font-medium">每日自动签到</h2>
-              <span className="rounded-md bg-hover px-2 py-1 text-xs text-ink-2">
-                {plan?.enabled ? '已启用' : '未启用'}
-              </span>
-            </div>
-            <label className="grid max-w-sm gap-2 text-xs text-ink-3">
-              每天时间（北京时间）
+              />
+            </SettingRow>
+            <SettingRow settingId="campus-sign-time" title="签到时间" description="北京时间">
               <Input
+                aria-label="每天时间（北京时间）"
                 type="time"
+                className="w-32"
                 value={time}
+                disabled={busy}
                 onChange={(e) => {
                   setTime(e.target.value);
                   setConfirm(null);
                 }}
               />
-            </label>
-            <label className="flex items-center gap-2 text-13">
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(e) => {
-                  setEnabled(e.target.checked);
-                  setConfirm(null);
-                }}
-              />
-              启用自动签到
-            </label>
-            <p className="text-xs text-ink-3">
-              到点尝试一次，先核验学校时段、位置及今日状态。请保持 Dela
-              运行；休眠或退出期间错过的计划不补交。
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              {confirm === 'auto' ? (
-                <>
-                  <span className="break-words text-13">
-                    确认每天 {time} 使用 {positionLabel} 尝试签到？
-                  </span>
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        setPlan(await api!.configureAttendance({ enabled, time, position }));
-                        setConfirm(null);
-                      })
-                    }
-                  >
-                    确认启用
-                  </Button>
-                  <Button variant="ghost" onClick={() => setConfirm(null)}>
-                    取消
-                  </Button>
-                </>
-              ) : (
+            </SettingRow>
+          </SettingsGroup>
+          <div className="flex flex-wrap items-center gap-2">
+            {confirm === 'auto' ? (
+              <>
+                <span className="break-words text-13">
+                  确认每天 {time} 使用 {positionLabel} 尝试签到？
+                </span>
                 <Button
-                  disabled={!api || busy || !time}
-                  onClick={() => {
-                    if (enabled) setConfirm('auto');
-                    else
-                      void run(async () =>
-                        setPlan(await api!.configureAttendance({ enabled, time, position })),
-                      );
-                  }}
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      setPlan(await api!.configureAttendance({ enabled, time, position }));
+                      setConfirm(null);
+                    })
+                  }
                 >
-                  保存计划
+                  确认启用
                 </Button>
-              )}
+                <Button variant="ghost" onClick={() => setConfirm(null)}>
+                  取消
+                </Button>
+              </>
+            ) : (
               <Button
-                disabled={!api || busy || !plan?.enabled}
-                variant="outline"
+                disabled={!api || busy || !time || !planDirty}
+                onClick={() => {
+                  if (enabled) setConfirm('auto');
+                  else
+                    void run(async () =>
+                      setPlan(await api!.configureAttendance({ enabled, time, position })),
+                    );
+                }}
+              >
+                保存计划
+              </Button>
+            )}
+            {plan?.enabled && (
+              <Button
+                variant="ghost"
+                disabled={!api || busy}
                 onClick={() =>
                   void run(async () => {
-                    const value = await api!.configureAttendance({
-                      enabled: false,
-                      time: plan!.time,
-                      position: plan!.position,
-                    });
-                    setPlan(value);
+                    setPlan(
+                      await api!.configureAttendance({
+                        enabled: false,
+                        time: plan!.time,
+                        position: plan!.position,
+                      }),
+                    );
                     setEnabled(false);
                     setConfirm(null);
                   })
@@ -424,29 +454,30 @@ function Attendance() {
               >
                 停止自动签到
               </Button>
-            </div>
-            {plan && (
-              <div role="status" className="grid gap-1 text-xs text-ink-3">
-                <p>{plan.message}</p>
-                {plan.enabled && (
-                  <p>
-                    已保存：每天 {plan.time} ·{' '}
-                    {plan.position
-                      ? `${plan.position.longitude.toFixed(6)}, ${plan.position.latitude.toFixed(6)}（百度坐标）`
-                      : '设备定位'}
-                  </p>
-                )}
-                {plan.lastAttemptAt && (
-                  <p>
-                    最近尝试：
-                    {new Date(plan.lastAttemptAt).toLocaleString('zh-CN', {
-                      timeZone: 'Asia/Shanghai',
-                    })}
-                  </p>
-                )}
-              </div>
             )}
-          </section>
+            {planDirty && <span className="text-xs text-ink-3">有未保存的修改</span>}
+          </div>
+          {plan && (
+            <div role="status" className="grid gap-1 text-xs text-ink-3">
+              {plan.enabled && (
+                <p>
+                  已保存：每天 {plan.time} ·{' '}
+                  {plan.position
+                    ? `${plan.position.longitude.toFixed(6)}, ${plan.position.latitude.toFixed(6)}（百度坐标）`
+                    : '设备定位'}
+                </p>
+              )}
+              {plan.lastAttemptAt && (
+                <p>
+                  最近尝试：
+                  {new Date(plan.lastAttemptAt).toLocaleString('zh-CN', {
+                    timeZone: 'Asia/Shanghai',
+                  })}{' '}
+                  · {plan.message}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </details>
       <section className="grid min-w-0 gap-3">
@@ -545,8 +576,12 @@ function Enrollment() {
   }
   const running = state?.plan?.status === 'scheduled' || state?.plan?.status === 'running';
   return (
-    <div className="mx-auto grid max-w-4xl gap-4">
+    <div className="grid min-w-0 gap-4">
       <header className="flex flex-wrap items-center gap-3">
+        <div className="mr-auto grid gap-1">
+          <h1 className="text-lg font-semibold">自动选课</h1>
+          <p className="text-xs text-ink-3">{state?.message ?? '正在读取选课状态'}</p>
+        </div>
         <Button
           disabled={!api || busy}
           variant="outline"
@@ -567,9 +602,6 @@ function Enrollment() {
           刷新课程
         </Button>
       </header>
-      <div className="flex items-start gap-2">
-        <p className="text-13 text-ink-2">{state?.message ?? '正在读取选课状态'}</p>
-      </div>
       {error && (
         <p role="alert" className="break-words text-13 text-red">
           {error}
@@ -736,10 +768,13 @@ function CampusNetwork() {
       setBusy(false);
     }
   }
+  const networkDirty =
+    !!state && (account !== state.account || password !== '' || enabled !== state.enabled);
   return (
     <div className="mx-auto grid max-w-lg gap-4">
-      <header>
-        <p className="mt-1 text-xs text-ink-3">白云校区 · 连接校园网后即可认证</p>
+      <header className="grid gap-1">
+        <h1 className="text-lg font-semibold">校园网</h1>
+        <p className="text-xs text-ink-3">白云校区</p>
       </header>
       <p role="status" className="text-13 text-ink-2">
         {state?.message ?? '正在读取状态'}
@@ -768,13 +803,14 @@ function CampusNetwork() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        <label className="flex min-h-11 items-center gap-3 text-13">
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-          断线后自动登录
-        </label>
+        <SettingRow settingId="campus-network-auto" title="断线后自动登录">
+          <Switch label="断线后自动登录" checked={enabled} disabled={busy} onChange={setEnabled} />
+        </SettingRow>
         <div className="flex flex-wrap gap-3">
           <Button
-            disabled={!api || busy || !account || (!password && !state?.hasPassword)}
+            disabled={
+              !api || busy || !networkDirty || !account || (!password && !state?.hasPassword)
+            }
             onClick={() => void run(true)}
           >
             {busy ? '连接中…' : '保存并连接'}
@@ -782,6 +818,7 @@ function CampusNetwork() {
           <Button disabled={!api || busy} variant="outline" onClick={() => void run(false)}>
             连接校园网
           </Button>
+          {networkDirty && <span className="self-center text-xs text-ink-3">有未保存的修改</span>}
         </div>
       </section>
       <div className="flex items-start gap-2 text-xs leading-relaxed text-ink-3">
@@ -802,9 +839,9 @@ function CampusNetwork() {
 function Community() {
   const [message, setMessage] = useState('');
   return (
-    <section className="h-full overflow-y-auto p-4">
+    <section className="h-full overflow-y-auto p-4 md:p-6">
       <div className="mx-auto grid max-w-lg gap-4">
-        <h1 className="text-sm font-medium">广小理</h1>
+        <h1 className="text-lg font-semibold">广小理</h1>
         <p className="text-13 text-ink-2">复制小程序口令，在微信中粘贴打开。</p>
         <div>
           <Button
