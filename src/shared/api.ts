@@ -2,6 +2,7 @@
 // 领域类型变化请直接改对应文件，不在此处添加逻辑。
 import type { BackupApi } from './backup';
 import type { AcademicsApi } from './academics';
+import type { CampusServicesApi } from './campus-services';
 import type { CacheApi } from './cache';
 import type { CapabilityApi } from './capabilities';
 import type { CanvasApi } from './canvas';
@@ -40,6 +41,7 @@ import type { WorkspaceApi } from './workspace';
 
 export interface DelaApi {
   readonly academics: AcademicsApi;
+  readonly campusServices: CampusServicesApi;
   readonly platform: string;
   readonly vsjtu: VsjtuApi;
   capability: CapabilityApi;

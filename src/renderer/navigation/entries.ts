@@ -1,11 +1,12 @@
 // 功能入口的单一真源：侧栏、折叠后标题栏图标与设置 › 通用 的显示开关都读这里。
 // 功能开启 > 入口显示：隐藏只影响导航，能力仍在；功能关闭（目前只有水源）时入口消失。首页固定显示，不在此列表。
-import { CalendarDays, FolderOpen, Mail, MonitorPlay } from 'lucide-react';
+import { CalendarDays, FolderOpen, Mail, MonitorPlay, School, MessagesSquare } from 'lucide-react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ShuiyuanIcon } from '../components/ui/shuiyuan-icon';
 
-export type NavEntryId = 'sources' | 'mail' | 'timetable' | 'classroom' | 'shuiyuan';
+export type NavEntryId =
+  'sources' | 'mail' | 'timetable' | 'classroom' | 'shuiyuan' | 'campus-services' | 'community';
 
 export const navEntries: Array<{
   id: NavEntryId;
@@ -15,6 +16,8 @@ export const navEntries: Array<{
   { id: 'sources', label: '资料', icon: FolderOpen },
   { id: 'mail', label: '邮箱', icon: Mail },
   { id: 'timetable', label: '教务', icon: CalendarDays },
+  { id: 'campus-services', label: '校园服务', icon: School },
+  { id: 'community', label: '广小理', icon: MessagesSquare },
   { id: 'classroom', label: '课堂视频', icon: MonitorPlay },
   { id: 'shuiyuan', label: '水源(beta)', icon: ShuiyuanIcon },
 ];

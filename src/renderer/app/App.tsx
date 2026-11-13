@@ -25,6 +25,7 @@ import { parsePreviewTabId } from '../content/preview/tab-id';
 import { ShuiyuanView } from '../features/shuiyuan';
 import { GlobalSearchDialog } from '../features/search/GlobalSearchDialog';
 import { TimetableView } from '../features/timetable';
+import { CampusServicesView } from '../features/campus-services/CampusServicesView';
 import { TodoView } from '../features/todo/TodoView';
 import type { ChatSessionSummary, GlobalSearchResult } from '../../shared/api';
 import type { NavSessionSummary } from '../navigation/ProjectSessionNav';
@@ -344,6 +345,8 @@ export default function App() {
                     />
                   )}
                   {view === 'shuiyuan' && <ShuiyuanView />}
+                  {view === 'campus-services' && <CampusServicesView />}
+                  {view === 'community' && <CampusServicesView community />}
                   {view === 'classroom' && <ClassroomView />}
                   {view === 'todo' && <TodoView request={todoRequest ?? undefined} />}
                   {view === 'notifications' && (

@@ -16,6 +16,8 @@ export type AppView =
   | 'workbench'
   | 'mail'
   | 'timetable'
+  | 'campus-services'
+  | 'community'
   | 'classroom'
   | 'shuiyuan'
   | 'todo'
